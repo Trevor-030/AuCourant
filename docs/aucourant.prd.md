@@ -1,7 +1,7 @@
 # AuCourant: Product Requirements Document
 
-> Working name. Tagline: *Stay au courant with your MoMo.*
-> Status: Draft v1. Intent only. Engineering decisions live in the architecture doc.
+> Name: AuCourant. Tagline: *Stay au courant with your MoMo.*
+> Status: Draft v2 (open questions answered). Intent only. Engineering decisions live in the architecture doc.
 
 ---
 
@@ -20,7 +20,8 @@ The financial staff must read these messages one by one and sort them by purpose
 | Churches sort MoMo SMS by reference by hand | **Observed** by the founder firsthand. Single observation. |
 | This is painful enough that they would switch | **Assumption.** Validate by sitting with 3 to 5 church treasurers or finance secretaries and watching how they sort today. |
 | Reference wording is inconsistent (typos, spacing, variants) | **Assumption.** Validate by collecting real SMS samples from at least 2 organizations (names and numbers hidden). |
-| How often staff sort (after each service, weekly, monthly) | **TBD, needs validation.** |
+| Staff sort and report once per service | **Stated** by the founder. Validate with real treasurers. |
+| MTN "Cash In" SMS carries amount, sender name, balance, transaction ID, fee, but **no reference** | **Observed** from a real sample. Where the reference lives for other payment types is **unknown**, see Open Questions. |
 
 ## 3. Thesis (why build it)
 
@@ -36,7 +37,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 
 > We believe **automatically sorting incoming MoMo money by reference, with similar references grouped together**, will cause **church financial staff** to **stop reading SMS by hand and export their reports straight from the app**, resulting in **less time spent on records and fewer sorting mistakes**.
 >
-> We'll know we're **RIGHT** if **a treasurer uses it with real money for one full month, exports at least one report to leadership, and needs to manually fix at most 1 transaction in 10.**
+> We'll know we're **RIGHT** if **a treasurer uses it with real money for one full month, exports at least one report to leadership, and needs to manually fix at most 1 transaction per reporting period (one service).**
 >
 > We'll know we're **WRONG** if **most money lands in "Untagged", or the treasurer keeps sorting by hand alongside the app, or grouped references are wrong often enough that they stop trusting the totals.**
 
@@ -49,7 +50,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 
 **Secondary user (later):** An individual tracking their own MoMo money.
 
-**Non-users (draft, needs validation):**
+**Non-users (agreed draft, validate with real treasurers):**
 - Organizations that already receive payments through a gateway or API and get clean data
 - iPhone users (the product depends on reading SMS on the phone)
 - Organizations that want online card giving
@@ -64,7 +65,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 4. It **suggests** merges of similar references (for example "Thanksgiving" and "Thanks giving"). The treasurer **confirms** each merge. Nothing merges silently.
 5. Anything without a usable reference goes to an **Untagged** list, where one tap assigns a group.
 6. The treasurer sees totals per group for a chosen period.
-7. The treasurer exports the result to **Excel** and **PDF**.
+7. The treasurer exports the result to **Excel** and **PDF**. Staff choose which fields appear. Hiding member names and phone numbers is an **option**, not the default.
 
 **Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync.
 
@@ -76,7 +77,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 
 | Metric | Target | How measured |
 |---|---|---|
-| Manual fix rate | At most 1 in 10 received transactions needs a manual change | Count of edited or assigned transactions divided by total, over one month of real use |
+| Manual fix rate | At most 1 manual change per reporting period (per service) | Count of edited or assigned transactions per service, over one month of real use. Strict target, revisit after testing against real SMS. |
 | Real-world adoption | At least 1 organization uses it for a full month with real money | Pilot with a treasurer, check-in at week 2 and week 4 |
 | Reporting outcome | At least 1 export delivered to leadership | Treasurer confirms |
 | Time saved | Self-reported sorting time drops noticeably versus before | Before and after question to the treasurer (baseline TBD) |
@@ -95,12 +96,19 @@ A second, smaller audience exists: individuals who want to understand their own 
 
 ## 9. Open Questions
 
-- [ ] What does "at most 1 manual fix" mean in practice: 1 in 10 transactions, or 1 transaction per reporting period? (Draft assumes 1 in 10. Confirm with the founder.)
-- [ ] How often do churches sort and report (per service, weekly, monthly)? Needs validation.
-- [ ] Who are the real non-users? Needs validation.
-- [ ] What do real SMS from MTN, Telecel, and AirtelTigo contain, and how often is the reference present? Need real samples.
-- [ ] Are members' names and numbers sensitive enough that exports should hide them? Needs validation.
-- [ ] Do leadership reports need a specific layout or fields in Excel and PDF?
-- [ ] Is one phone enough, or do some churches need a backup if the phone is lost?
-- [ ] Final product name and availability (store and domain check).
-- [ ] Platform constraint: Android only for now, because reading SMS is needed. Implementation language and tools are decided in the architecture doc.
+**Resolved**
+- [x] Fix target: at most 1 manual fix per reporting period.
+- [x] Reporting cadence: once per service.
+- [x] Non-users: as drafted in section 5.
+- [x] Privacy: hiding member names and numbers in exports is an option.
+- [x] Export fields: staff choose which fields to include.
+- [x] One phone is enough for the first release.
+- [x] Name: AuCourant (store and domain availability still to check).
+- [x] Platform: Android only for now. Implementation language and tools are decided in the architecture doc.
+
+**Still open**
+- [ ] The real MTN sample received is a Cash In (deposit) and has **no reference**. Need samples of payments received from another person, and from Telecel and AirtelTigo, to learn where a reference appears, if at all.
+- [ ] How often is a reference present, per network, and in what form?
+- [ ] Baseline: how long does sorting take a treasurer today?
+- [ ] Is 1 manual fix per service realistic once tested on real SMS? Revisit after the parser is proven.
+- [ ] Store and domain availability for "AuCourant".

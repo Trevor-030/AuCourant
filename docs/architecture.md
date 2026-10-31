@@ -1,6 +1,6 @@
 # Architecture: AuCourant
 
-> High-level decision doc, version 3 (adds undo history and export memory from the design pass). Intent lives in `aucourant.prd.md`. Visual design lives in `figma-brief.md`. Task-level plans come later.
+> High-level decision doc, version 4 (lock choice, grouping rules, undo length, no encryption). Intent lives in `aucourant.prd.md`. Visual design lives in `figma-brief.md`. Task-level plans come later.
 > Constraints from the founder: **Java**, **Android only**, **free resources only**, **everything on the phone**, **direct APK install** (not Play Store).
 
 ## Problem & goals
@@ -30,7 +30,7 @@ An Android app with seven parts that all live on the phone:
 4. **Grouping:** a typed purpose becomes a group. Similar references are *suggested* as merges and the treasurer confirms. No reference means the "No reference" group, so every payment has a group.
 5. **Review and reports:** totals per group for a chosen service, a review queue, and Excel and PDF export.
 6. **Services:** a weekly service on a chosen weekday, plus special sessions for one-off dates.
-7. **App lock:** PIN, with optional fingerprint, plus dark and light themes.
+7. **App lock:** the user's choice of 4-digit PIN, 6-digit PIN or password, with optional fingerprint, plus dark and light themes.
 
 ### Reference cleaning rules (from real samples)
 
@@ -51,6 +51,14 @@ Rules, applied in order:
 
 The original field is always stored untouched next to the cleaned value, so a wrong rule can be fixed later without losing data.
 
+### Grouping rules
+
+1. **Match key:** the cleaned reference, lower-cased, trimmed, punctuation removed. Two references with the same key are **the same group automatically** ("offering", "Offering", "OFFERING.").
+2. **Display name:** the first wording seen, shown with a capital first letter. The treasurer can rename a group.
+3. **Built-in known pairs:** a small list joins automatically and visibly. Confirmed: **"Offertory" counts as "Offering"**. Proposed, waiting for the founder: "Tithes" counts as "Tithe". The group shows *Also counted: Offertory*, and the join can be undone from Merge history.
+4. **Everything else similar** (for example "Thanksgiving" and "Thanks giving") is **suggested** by the similarity score, and the treasurer confirms. Confirmed pairs are remembered.
+5. Spacing differences are not auto-joined. They go through suggestions.
+
 ## Key decisions
 
 **Stack & libraries (all free)**
@@ -66,8 +74,8 @@ The original field is always stored untouched next to the cleaned value, so a wr
 | Similarity | Hand-written normalization plus Levenshtein or Jaro-Winkler | Apache Commons Text (free, adds a dependency) |
 | PDF | Android built-in `PdfDocument` | third-party PDF library |
 | Excel | **CSV first** (opens in Excel, zero dependency), then real `.xlsx` after a spike | Apache POI (free but heavy on Android) |
-| PIN | Salted hash from the JDK (PBKDF2), never stored in plain form | none needed |
-| Fingerprint | AndroidX Biometric (free), PIN always available as fallback. Check the library's current status when building | PIN only |
+| PIN or password | One salted hash from the JDK (PBKDF2), never stored in plain form. Same code for 4-digit PIN, 6-digit PIN and password (password at least 6 characters) | none needed |
+| Fingerprint | AndroidX Biometric (free), the PIN or password always works as fallback. Check the library's current status when building | lock only |
 | Distribution | APK on GitHub Releases or direct file share | Play Store ($25 fee and blocked by SMS policy) |
 | Design | Figma free tier | none needed |
 
@@ -75,12 +83,12 @@ The original field is always stored untouched next to the cleaned value, so a wr
 
 - **Transaction:** transaction ID (unique), network, type (received, sent, cash in, cash out, other), amount, fee, counterparty name and number, raw reference, cleaned reference (nullable), timestamp, balance, raw SMS text, parse status (parsed, partial, unparsed), group, how the group was set (auto, confirmed suggestion, manual).
 - **Group:** name, plus the system group "No reference".
-- **ReferenceAlias:** a normalized reference mapped to a group, created when a merge is confirmed, so the same wording never needs deciding twice.
+- **ReferenceAlias:** a normalized reference mapped to a group, created when a merge is confirmed, and pre-filled from the built-in known pairs, so the same wording never needs deciding twice.
 - **MergeSuggestion:** two groups, similarity score, status (pending, accepted, rejected). Rejected pairs are never suggested again.
 - **GroupChange:** payment, from group, to group, time, kind (auto, confirmed suggestion, manual, undo). It powers Undo, the merge history and the manual-fix count.
 - **WeeklyService:** weekday (default Sunday), start time, end time.
-- **SpecialSession:** name, date, start time, end time.
-- **Settings:** theme (dark, light, match phone), lock on or off, fingerprint on or off, PIN hash and salt, last export format and fields, whether to hide member names and numbers in exports.
+- **SpecialSession:** name, date, start time, end time. A payment inside a special session's window belongs to it, not to the weekly service, so no payment is counted twice.
+- **Settings:** theme (dark, light, match phone), lock type (4-digit PIN, 6-digit PIN, password) or none, fingerprint on or off, lock hash and salt, last export format and fields, whether to hide member names and numbers in exports.
 
 A payment belongs to a service by its timestamp. Every payment already belongs to a group, so there is no separate "untagged" state.
 
@@ -93,8 +101,8 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 - **Play Store policy:** Google restricts SMS permissions to default messaging apps, so AuCourant ships as a direct APK. Church installs it from a link and allows installs from outside the store. Policy was checked in this planning session. Recheck before any Play submission.
 - **Permissions:** RECEIVE_SMS and READ_SMS, plus biometric use for fingerprint. No internet permission is needed, which is also a trust message to churches.
 - **Privacy:** no network, no cloud, no analytics. Turn off Android auto-backup for the database so member data is not uploaded. The export file is the backup.
-- **App lock:** the PIN stops people opening the app on the shared phone. It does not by itself encrypt the database file (see open questions).
-- **Forgot PIN:** with no account or server there is no remote reset. The only recovery is to erase the app's data and rescan the inbox. Exported reports stay in the phone's files.
+- **App lock:** the lock stops people opening the app on the shared phone. **Decision: no database encryption**, the lock only. App data is private to the app and backups are off, but the file itself is not encrypted. Revisit if a church asks for more.
+- **Forgot PIN or password:** with no account or server there is no remote reset. The only recovery is to erase the app's data and rescan the inbox. Exported reports stay in the phone's files.
 - **Signing key:** the APK must always be signed with the same key to update. Generate once, back it up safely. **One-way door.**
 - **Sideloaded SMS permission:** newer Android versions may add extra steps before a sideloaded app can use SMS permission. Verify on a real phone (see spikes).
 
@@ -107,9 +115,7 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 
 ## Missing pieces
 
-- **More real SMS samples:** Telecel and AirtelTigo, and messy typed references (case, spelling, extra words).
-- A rule for a special session that overlaps a weekly service.
-- Encryption decision for data at rest.
+- **More real SMS samples** when available: Telecel, AirtelTigo, and messy typed references. The MVP supports **MTN only**, built from the samples already collected.
 - Figma frontend (in progress).
 
 ## Spikes & experiments
@@ -119,7 +125,7 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 Question:      Where does a typed purpose appear, and how often is it clean?
 Answered:      MTN "Payment received" SMS carry a typed purpose in the Reference field (seen: "offering"). Blank and network auto-filled values also occur (4 samples).
 Still open:    Telecel and AirtelTigo formats, and how messy real typed references are
-Spike:         Collect 20+ more real received-payment SMS across senders and networks, 1 to 2 days
+Spike:         Deferred. The founder chose to use the existing samples. Revisit when a pilot church provides real messages (1 to 2 days)
 Decision rule: keep reference-from-SMS if most payments with a purpose are clean; otherwise strengthen the cleaner and the merge suggestions
 ```
 
@@ -144,19 +150,26 @@ Spike:         Ship CSV first, ask 2 treasurers whether it opens fine in Excel, 
 Decision rule: stay with CSV if they are happy; add .xlsx only if they ask
 ```
 
-**Spike 5: Fingerprint and PIN on cheap phones**
+**Spike 5: Fingerprint and lock on cheap phones**
 ```
 Question:      Does fingerprint unlock work reliably on the phones churches actually use?
 Spike:         Test on 2 to 3 real low-cost phones, half a day
 Decision rule: keep fingerprint as optional if it works; PIN stays the guaranteed way in
 ```
 
+## Decided in this round
+
+- Lock: the user chooses a 4-digit PIN, a 6-digit PIN or a password.
+- Special session overlap: the special session wins for payments inside its window.
+- Case-only differences are one group automatically. "Offertory" counts as "Offering".
+- No database encryption.
+- MTN only for the MVP, using the existing samples.
+- Undo: message for about 8 seconds, plus Merge history in Settings for merges.
+
 ## Open questions
 
-- Encrypt the database at rest (free options exist, they add size and complexity), or rely on the PIN and Android's own protection?
-- PIN length (4 or 6 digits) and whether setup may be skipped.
-- Which service wins when a special session overlaps the weekly service?
-- Should group names ignore case so "offering" and "Offering" are one group automatically?
+- Can lock setup be skipped? Draft says yes, offered once.
+- Which other known pairs join automatically ("Tithes" counted as "Tithe" is proposed)?
 - Do exports need a fixed layout for leadership, or fully free fields?
 - Which Android versions must be supported (affects permissions and the oldest phones)?
 - Personal-use features (budgets, fee warnings) are deferred and will need their own architecture pass.

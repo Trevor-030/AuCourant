@@ -60,4 +60,4 @@ bg-0 `#080D0C`, bg-1 `#0E1A16`, bg-2 `#13241E`, bg-3 `#1A2F27` (sheets, dialogs,
 
 **Build components** (default, pressed, focused, error, in Dark and Light): buttons, text field, search, chips, checkbox, radio, switch, PIN dots and keypad, password field, rows, cards, bottom sheet, dialog, Undo message, coach mark, progress bar, skeleton rows. Auto layout everywhere. Variables for colour, spacing and type. Name frames `A1 Welcome`, `B Home`, and add ` Light` for light frames.
 
-**Do not design:** budgeting, charts, login or accounts, cloud sync, tablet, iPhone, or a website.
+**Do not design:** budgeting, charts, login or accounts, cloud sync, tablet, or a website.

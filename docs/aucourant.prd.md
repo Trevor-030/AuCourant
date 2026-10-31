@@ -1,7 +1,7 @@
 # AuCourant: Product Requirements Document
 
 > Name: AuCourant. Tagline: *Stay au courant with your MoMo.*
-> Status: Draft v6 (lock choice, grouping rules, undo length and encryption decided).
+> Status: Draft v7 (recovery code replaces erase-only reset, known pairs confirmed).
 > Intent only. Engineering decisions live in `architecture.md`. Visual decisions live in `figma-brief.md`.
 
 ---
@@ -72,7 +72,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 7. The treasurer sees totals per group for a chosen service.
 8. **Services:** a weekly service on a chosen day (default Sunday), plus **special sessions** the treasurer can create at any time. Payments inside a special session count there and not in the weekly service, so nothing is counted twice.
 9. The treasurer exports the result to **Excel** and **PDF**. Staff choose which fields appear. Hiding member names and phone numbers is an **option**, not the default. Export remembers the last format and fields, so repeat exports take a few taps.
-10. **App lock:** the user chooses the lock: a 4-digit PIN, a 6-digit PIN, or a password. Fingerprint can be turned on as a faster way in. Setup can be done later.
+10. **App lock:** the user chooses the lock: a 4-digit PIN, a 6-digit PIN, or a password. Fingerprint can be turned on as a faster way in. Setup can be done later. At setup the app shows a **recovery code** once. If the PIN or password is forgotten, the code resets the lock **without erasing any data**.
 11. **Appearance:** dark theme by default, light theme available.
 
 **Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
@@ -119,11 +119,13 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] Fix target 0, time target about 3 minutes, name AuCourant, Android only, one phone, direct APK, free resources only, export field choice and hide-names option.
 - [x] Visual identity: Midnight Emerald Royal, dark theme default with a light theme.
 
+- [x] Erasing all data after a forgotten PIN or password is **not acceptable** (founder). A recovery code resets the lock and keeps the data. Erase stays only as a last resort if both the lock and the code are lost.
+- [x] Lock setup can be done later (offered once).
+- [x] Built-in known pairs: "Offertory" counted as "Offering" and "Tithes" counted as "Tithe".
+
 **Still open**
-- [ ] Forgot PIN or password: with no account or server, the only reset is to erase the app's data. Is that acceptable to churches?
-- [ ] Built-in known pairs: only "Offertory" counted as "Offering" is confirmed. Proposed to add: "Tithes" counted as "Tithe". Confirm or add more.
-- [ ] Can lock setup be skipped? Draft says yes ("Set up later", offered once). Confirm.
+- [ ] Do leadership reports need a fixed layout? A sample report from a church would settle it.
+- [ ] Baseline: how long does a treasurer take today for one service? (needed to prove the 3 minute claim)
 - [ ] Telecel and AirtelTigo: no samples, so not supported yet. Add them when real messages are available.
 - [ ] Real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
-- [ ] Baseline: how long does a treasurer take today for one service? (needed to prove the 3 minute claim)
-- [ ] Do leadership reports need a fixed layout?
+- [ ] Where will the treasurer keep the recovery code? (the app suggests writing it down and keeping it with a church leader)

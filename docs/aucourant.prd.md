@@ -1,7 +1,7 @@
 # AuCourant: Product Requirements Document
 
 > Name: AuCourant. Tagline: *Stay au courant with your MoMo.*
-> Status: Draft v5 (adds undo and export memory from the design pass).
+> Status: Draft v6 (lock choice, grouping rules, undo length and encryption decided).
 > Intent only. Engineering decisions live in `architecture.md`. Visual decisions live in `figma-brief.md`.
 
 ---
@@ -23,7 +23,7 @@ The financial staff must read these messages one by one and sort them by purpose
 | Staff sort and report once per service. Services are usually on Sundays, and special sessions also happen | **Stated** by the founder. Validate with real treasurers. |
 | MTN SMS come in at least 3 shapes: Cash In (no reference), Payment sent (reference shown as "-" when empty), Payment received (has a Reference field) | **Observed** from real samples. |
 | In "Payment received" SMS the Reference field shows up in 3 ways: a typed purpose (for example "offering"), blank, or auto-filled by the network with the sender's name, phone number and text like "tf from VODAFONE" | **Observed** in 4 real samples. Telecel and AirtelTigo formats unknown. |
-| Typed references vary in case, spelling and spacing ("Thanksgiving", "Thanks giving") | **Assumption.** Need samples of messy real references. |
+| Typed references vary in case, spelling and spacing ("Thanksgiving", "Thanks giving") | **Assumption.** No messy samples yet. The pilot will show how messy real references are. |
 
 ## 3. Thesis (why build it)
 
@@ -67,15 +67,15 @@ A second, smaller audience exists: individuals who want to understand their own 
 2. It pulls out amount, sender, date, and reference for each received payment.
 3. A reference is only what the giver typed. If the Reference field is blank, "-", or filled by the network with the sender's own details, the payment has **no reference**.
 4. It sorts payments into groups by reference (offering, harvest, thanksgiving, welfare, and so on). Payments with no reference go to the **No reference** group. Every payment ends up in a group.
-5. It **suggests** merges of similar references (for example "Thanksgiving" and "Thanks giving"). The treasurer **confirms** each merge. Nothing merges silently.
-6. The treasurer can move any payment to another group with one tap. Moves and merges happen at once and can be **undone** right away from a short message at the bottom of the screen, or later from a merge history.
+5. References that differ only by capital letters or punctuation (for example "offering" and "Offering") are one group automatically. A small built-in list of known pairs also joins automatically, starting with **"Offertory" counted as "Offering"**, and the group always shows what it includes. Any other similar references (for example "Thanksgiving" and "Thanks giving") are **suggested** as merges and the treasurer **confirms** each one.
+6. The treasurer can move any payment to another group with one tap. Moves and merges happen at once and can be **undone** right away from a short message at the bottom of the screen, or later, for merges, from **Merge history** in Settings. The Undo message stays for about 8 seconds.
 7. The treasurer sees totals per group for a chosen service.
-8. **Services:** a weekly service on a chosen day (default Sunday), plus **special sessions** the treasurer can create for one-off dates.
+8. **Services:** a weekly service on a chosen day (default Sunday), plus **special sessions** the treasurer can create at any time. Payments inside a special session count there and not in the weekly service, so nothing is counted twice.
 9. The treasurer exports the result to **Excel** and **PDF**. Staff choose which fields appear. Hiding member names and phone numbers is an **option**, not the default. Export remembers the last format and fields, so repeat exports take a few taps.
-10. **App lock:** a PIN protects the app. Fingerprint can be turned on as a faster way in.
+10. **App lock:** the user chooses the lock: a 4-digit PIN, a 6-digit PIN, or a password. Fingerprint can be turned on as a faster way in. Setup can be done later.
 11. **Appearance:** dark theme by default, light theme available.
 
-**Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, other networks beyond what real samples support.
+**Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
 
 **Door check:**
 - Reading and parsing SMS across networks is a **one-way door** (everything depends on it). Prove it first with real samples.
@@ -101,7 +101,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 - No cloud upload of messages in the first release.
 - No iPhone version in the first release.
 - No user accounts, roles or approvals in the first release.
-- No silent auto-merging of references.
+- No silent merging beyond capital letters, punctuation and the built-in known pairs. Those are always visible and can be undone.
 
 ## 9. Open Questions
 
@@ -109,19 +109,21 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] A reference should always be present, otherwise the payment is in the "No reference" group.
 - [x] Confirming a merge does not count as a manual fix.
 - [x] A service is a day of the week (usually Sunday), with special sessions for one-off dates.
-- [x] The app has a PIN lock, with fingerprint as an option.
+- [x] The app has a lock chosen by the user: 4-digit PIN, 6-digit PIN or password, with fingerprint as an option.
+- [x] Special sessions can be created at any time. Payments inside a special session count there, not in the weekly service (Claude's rule, founder said "allow it whenever").
+- [x] "offering" and "Offering" are one group automatically. "Offertory" counts as "Offering".
+- [x] No database encryption. The lock only.
+- [x] Use the existing MTN samples. MTN only for the MVP.
+- [x] Undo: a message for about 8 seconds, plus Merge history in Settings for merges (Claude's decision, founder said "decide").
 - [x] Founder believes 0 manual fixes per service is realistic. To be proven in the pilot, not assumed.
 - [x] Fix target 0, time target about 3 minutes, name AuCourant, Android only, one phone, direct APK, free resources only, export field choice and hide-names option.
 - [x] Visual identity: Midnight Emerald Royal, dark theme default with a light theme.
 
 **Still open**
-- [ ] Telecel and AirtelTigo SMS samples (received payments, with and without a typed purpose).
-- [ ] More **messy typed references** from real givers (different case, spelling, extra words like "tithe and offering").
-- [ ] If a special session falls inside a weekly service time, which one does a payment belong to?
-- [ ] Forgot PIN: with no account or server, the only reset is to erase the app's data. Is that acceptable to churches?
-- [ ] PIN length: 4 or 6 digits? May the PIN be skipped during setup?
-- [ ] Should group names ignore case ("offering" and "Offering" become one group automatically)?
-- [ ] Should the data on the phone be encrypted, not only locked by PIN? (see architecture)
+- [ ] Forgot PIN or password: with no account or server, the only reset is to erase the app's data. Is that acceptable to churches?
+- [ ] Built-in known pairs: only "Offertory" counted as "Offering" is confirmed. Proposed to add: "Tithes" counted as "Tithe". Confirm or add more.
+- [ ] Can lock setup be skipped? Draft says yes ("Set up later", offered once). Confirm.
+- [ ] Telecel and AirtelTigo: no samples, so not supported yet. Add them when real messages are available.
+- [ ] Real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
 - [ ] Baseline: how long does a treasurer take today for one service? (needed to prove the 3 minute claim)
-- [ ] How long should Undo stay available: only the short message, or also a merge history?
 - [ ] Do leadership reports need a fixed layout?

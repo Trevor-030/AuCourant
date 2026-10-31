@@ -1,6 +1,6 @@
 # Architecture: AuCourant
 
-> High-level decision doc, version 4 (lock choice, grouping rules, undo length, no encryption). Intent lives in `aucourant.prd.md`. Visual design lives in `figma-brief.md`. Task-level plans come later.
+> High-level decision doc, version 5 (recovery code replaces erase-only reset, known pairs confirmed). Intent lives in `aucourant.prd.md`. Visual design lives in `figma-brief.md`. Task-level plans come later.
 > Constraints from the founder: **Java**, **Android only**, **free resources only**, **everything on the phone**, **direct APK install** (not Play Store).
 
 ## Problem & goals
@@ -55,7 +55,7 @@ The original field is always stored untouched next to the cleaned value, so a wr
 
 1. **Match key:** the cleaned reference, lower-cased, trimmed, punctuation removed. Two references with the same key are **the same group automatically** ("offering", "Offering", "OFFERING.").
 2. **Display name:** the first wording seen, shown with a capital first letter. The treasurer can rename a group.
-3. **Built-in known pairs:** a small list joins automatically and visibly. Confirmed: **"Offertory" counts as "Offering"**. Proposed, waiting for the founder: "Tithes" counts as "Tithe". The group shows *Also counted: Offertory*, and the join can be undone from Merge history.
+3. **Built-in known pairs:** a small list joins automatically and visibly. Confirmed: **"Offertory" counts as "Offering"** and **"Tithes" counts as "Tithe"**. The group shows *Also counted: Offertory*, and the join can be undone from Merge history.
 4. **Everything else similar** (for example "Thanksgiving" and "Thanks giving") is **suggested** by the similarity score, and the treasurer confirms. Confirmed pairs are remembered.
 5. Spacing differences are not auto-joined. They go through suggestions.
 
@@ -88,7 +88,7 @@ The original field is always stored untouched next to the cleaned value, so a wr
 - **GroupChange:** payment, from group, to group, time, kind (auto, confirmed suggestion, manual, undo). It powers Undo, the merge history and the manual-fix count.
 - **WeeklyService:** weekday (default Sunday), start time, end time.
 - **SpecialSession:** name, date, start time, end time. A payment inside a special session's window belongs to it, not to the weekly service, so no payment is counted twice.
-- **Settings:** theme (dark, light, match phone), lock type (4-digit PIN, 6-digit PIN, password) or none, fingerprint on or off, lock hash and salt, last export format and fields, whether to hide member names and numbers in exports.
+- **Settings:** theme (dark, light, match phone), lock type (4-digit PIN, 6-digit PIN, password) or none, fingerprint on or off, lock hash and salt, recovery code hash and salt, last export format and fields, whether to hide member names and numbers in exports.
 
 A payment belongs to a service by its timestamp. Every payment already belongs to a group, so there is no separate "untagged" state.
 
@@ -102,7 +102,8 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 - **Permissions:** RECEIVE_SMS and READ_SMS, plus biometric use for fingerprint. No internet permission is needed, which is also a trust message to churches.
 - **Privacy:** no network, no cloud, no analytics. Turn off Android auto-backup for the database so member data is not uploaded. The export file is the backup.
 - **App lock:** the lock stops people opening the app on the shared phone. **Decision: no database encryption**, the lock only. App data is private to the app and backups are off, but the file itself is not encrypted. Revisit if a church asks for more.
-- **Forgot PIN or password:** with no account or server there is no remote reset. The only recovery is to erase the app's data and rescan the inbox. Exported reports stay in the phone's files.
+- **Forgot PIN or password:** the **recovery code** resets the lock and keeps all data. At lock setup the app makes a 12-character code from a 32-symbol alphabet with no look-alikes (no 0, O, 1, I), using the platform's secure random generator. The code is shown **once**, stored only as a salted hash (same code path as the lock), and checked with the same wrong-try delay. Using it forces a new lock and a **new recovery code**, and the old code stops working. A new code can be made from Settings after unlocking. If both the lock and the code are lost, the **last resort** is to erase the app's data and rescan the inbox. Payments come back from the SMS inbox, but custom group names, merges and sessions do not.
+- **Why not the phone's own screen lock as a reset:** on a shared phone other people may know it, which would defeat the app lock.
 - **Signing key:** the APK must always be signed with the same key to update. Generate once, back it up safely. **One-way door.**
 - **Sideloaded SMS permission:** newer Android versions may add extra steps before a sideloaded app can use SMS permission. Verify on a real phone (see spikes).
 
@@ -116,6 +117,7 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 ## Missing pieces
 
 - **More real SMS samples** when available: Telecel, AirtelTigo, and messy typed references. The MVP supports **MTN only**, built from the samples already collected.
+- A backup file for groups, merges and sessions, so the last-resort erase costs less. Deferred, not in the MVP.
 - Figma frontend (in progress).
 
 ## Spikes & experiments
@@ -159,17 +161,16 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 
 ## Decided in this round
 
-- Lock: the user chooses a 4-digit PIN, a 6-digit PIN or a password.
+- Lock: the user chooses a 4-digit PIN, a 6-digit PIN or a password. Setup can be done later.
+- **Recovery code** at setup resets a forgotten lock without erasing data. Erase is only the last resort.
 - Special session overlap: the special session wins for payments inside its window.
-- Case-only differences are one group automatically. "Offertory" counts as "Offering".
+- Case-only differences are one group automatically. Built-in pairs: "Offertory" counts as "Offering", "Tithes" counts as "Tithe".
 - No database encryption.
 - MTN only for the MVP, using the existing samples.
 - Undo: message for about 8 seconds, plus Merge history in Settings for merges.
 
 ## Open questions
 
-- Can lock setup be skipped? Draft says yes, offered once.
-- Which other known pairs join automatically ("Tithes" counted as "Tithe" is proposed)?
 - Do exports need a fixed layout for leadership, or fully free fields?
 - Which Android versions must be supported (affects permissions and the oldest phones)?
 - Personal-use features (budgets, fee warnings) are deferred and will need their own architecture pass.

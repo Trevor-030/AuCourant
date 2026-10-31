@@ -1,6 +1,6 @@
 # AuCourant: Figma Design Brief
 
-> Version 3. Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
+> Version 4. Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
 > Platform: **Android phone, one shared phone per church.**
 > Identity: **Midnight Emerald Royal**, dark theme by default, light theme included.
 > Design knowledge: **Kole Jain** lessons applied where they fit (section 3).
@@ -112,7 +112,7 @@ Tone: **quiet luxury, calm, trustworthy.** This is church money. Luxury here mea
 - Banned: OK, Submit, Proceed, Continue.
 - Errors never blame, are two sentences or fewer, and give a way to recover.
 - Every empty state has: headline, one sentence of value, one action button.
-- No nag screens. PIN setup is offered once, and can be set up later.
+- No nag screens. Lock setup is offered once, and can be set up later.
 
 ## 5. Tokens (Figma variables with two modes: Dark and Light)
 
@@ -250,21 +250,26 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 
 **A4. Scan complete** (Form, centered)
 - Rows: *Payments received 312*, *Groups found 7*, *With no reference 18*
-- Button: *Set up PIN*
+- Button: *Set up lock*
 
-**A5. Set PIN** (Form, centered)
-- Labels *Create PIN*, *Confirm PIN*, number keypad, show or hide control.
-- Helper: *Use 4 to 6 digits. A forgotten PIN can't be recovered.* (length is an open question)
-- Button *Save PIN* is **never disabled**. If the PINs differ, tapping it shows: *The two PINs don't match. Enter them again.*
+**A5. Set up lock** (Form, centered)
+- Title *Lock AuCourant*. Body: *Choose how to unlock the app on this shared phone.*
+- Label *Lock type*, radio: *4-digit PIN* (selected by default), *6-digit PIN*, *Password*.
+- PIN choice: labels *Create PIN*, *Confirm PIN*, dots and number keypad.
+- Password choice: labels *Create password*, *Confirm password*, text fields with a show or hide control, helper *Use at least 6 characters.*
+- Helper for both: *You can't recover a forgotten PIN or password.*
+- Button *Save lock* is **never disabled**. If the two entries differ, tapping it shows: *The two entries don't match. Enter them again.* A password under 6 characters shows: *Use at least 6 characters.*
 - Text button *Set up later*.
-- Then *Use fingerprint*: *Unlock with your fingerprint. Your PIN still works.* Buttons *Turn on fingerprint*, *Not now*.
-- The PIN is never saved as a draft.
+- Then *Use fingerprint*: *Unlock with your fingerprint. Your PIN or password still works.* Buttons *Turn on fingerprint*, *Not now*.
+- The lock is never saved as a draft. The lock type can be changed later in Settings.
 
-**A6. Lock screen** (Form, centered): shown when the app opens.
-- *Enter your PIN*, dots, keypad, *Use fingerprint* when on.
-- Wrong PIN: *That PIN doesn't match. Try again.*
+**A6. Lock screen** (Form, centered): shown when the app opens. Two variants.
+- **PIN variant:** *Enter your PIN*, 4 or 6 dots, keypad.
+- **Password variant:** *Enter your password*, a text field with a show or hide control, button *Unlock app*.
+- Both: *Use fingerprint* when on.
+- Wrong entry: *That PIN doesn't match. Try again.* or *That password doesn't match. Try again.*
 - Too many tries: *Too many tries. Wait 30 seconds, then try again.*
-- Link *Forgot PIN* opens a dialog: *Erase all AuCourant data from this phone? You'll need a new PIN and a fresh scan. Reports you exported stay in your files.* Buttons *Erase data* (error red), *Cancel* (default focus).
+- Link *Forgot PIN or password* opens a dialog: *Erase all AuCourant data from this phone? You'll need a new lock and a fresh scan. Reports you exported stay in your files.* Buttons *Erase data* (error red), *Cancel* (default focus).
 
 ### B. Home (Dashboard)
 Priority order, top to bottom: 1 total, 2 needs attention, 3 top groups.
@@ -284,6 +289,7 @@ Priority order, top to bottom: 1 total, 2 needs attention, 3 top groups.
 
 ### D. Group detail (Detail)
 - Header: group name (**inline rename**, see below), total, payment count.
+- When the group also counts other wordings, a line in secondary text under the name: *Also counted: Offertory*, with a text link *Manage* that opens Merge history.
 - Menu: *Merge into another group*. Not available for No reference.
 - Payments as a timeline: date headers with day totals, rows with sender and amount.
 - **Inline rename:** tap the pencil beside the name. The title turns into an input in the **same box**, nothing around it moves. Enter saves, Escape cancels. No sheet, no Save row.
@@ -332,13 +338,18 @@ Two tabs: **Merges (2)** and **Not read (1)**.
 - Error: *We couldn't create the report. Check that the phone has free storage and try again.* Button *Try again*.
 
 ### I. Services
-- **Service picker** (bottom sheet): recent weekly services, special sessions, *Choose dates*, *Create special session*.
-- **Create special session** (a full page, Form, because it has four fields): *Session name* (placeholder `Harvest thanksgiving`), *Date*, *Start time*, *End time*, button *Save session*. Draft is kept if you leave.
+- **Service picker** (bottom sheet): recent weekly services, special sessions (each with its payment count), *Choose dates*, *Create special session*. A special session on a Sunday sits beside that Sunday, and each shows only its own payments.
+- **Create special session** (a full page, Form, because it has four fields): *Session name* (placeholder `Harvest thanksgiving`), *Date* (defaults to today, past dates allowed), *Start time*, *End time*. Helper under the times: *Payments inside this session count here, not in the weekly service.* Button *Save session*. Draft is kept if you leave.
 - **Weekly service** (a full page, Form, in Settings): *Day of week* (Sunday selected), *Start time*, *End time*, button *Save weekly service*.
 
 ### J. Settings (Settings)
-- Rows: *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Change PIN*, *Use fingerprint* switch), *Merge history* (undo any past merge), *Scan messages again*, *Networks supported*, *About AuCourant*, *Delete all data*.
+- Rows: *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Lock type*, *Change PIN or password*, *Use fingerprint* switch), *Merge history*, *Scan messages again*, *Networks supported* (MTN), *About AuCourant*, *Delete all data*.
 - *Delete all data* opens a dialog: *Delete all AuCourant data from this phone? Reports you exported stay in your files.* Buttons *Delete data* (error red), *Cancel* (default focus).
+
+### J2. Merge history (List / Index)
+- List on `bg-1`: *Thanks giving into Thanksgiving*, date, payment count, and a text button *Undo merge*. Built-in pairs appear too, for example *Offertory into Offering, built in*.
+- After *Undo merge* the change happens at once with the Undo message: *Split Thanks giving from Thanksgiving. Undo*. No dialog (it can be undone).
+- Empty: *No merges yet*, *Merged groups show up here so you can undo them.*, button *Go to Groups*.
 
 ## 9. Flows to prototype (design flows, not lone screens)
 
@@ -346,11 +357,11 @@ Each flow is one Figma section with a start frame and links wired.
 
 | Flow | Path |
 |---|---|
-| F1 First run | A1, A2 (denied branch), A3, A4, A5, fingerprint step, B |
+| F1 First run | A1, A2 (denied branch), A3, A4, A5 (choose lock type), fingerprint step, B |
 | F2 Review merges | B, Review now, G1 stack, Confirm merge, Undo message, next card, Everything is sorted |
 | F3 Fix one payment | E, tap row, F, Group row, Change group sheet, pick group, Undo message |
 | F4 Export | Export tab, H (defaults), Customize fields, Export report, success, Share file |
-| F5 Forgot PIN | A6, wrong PIN, too many tries, Forgot PIN, Erase data dialog, A1 |
+| F5 Forgot lock | A6, wrong entry, too many tries, Forgot PIN or password, Erase data dialog, A1 |
 
 Use Smart Animate keyed to matching layer names. Link transitions use the tokens in section 10.
 
@@ -386,7 +397,7 @@ Empty and loading states keep the same frame (list surface, header, search) as t
 
 ## 12. Components to build in Figma
 
-App bar, bottom navigation, total card (gradient), attention card (decision), group row, payment row with date header, search field, filter chip, checkbox row, radio, switch, text field with visible label, PIN dots and keypad, primary, secondary (outline), text and destructive buttons, bottom sheet, confirmation dialog, merge stack card, Undo message (snackbar), coach mark, progress bar, skeleton row, inline error, empty state block, expandable section.
+App bar, bottom navigation, total card (gradient), attention card (decision), group row, payment row with date header, search field, filter chip, checkbox row, radio, switch, text field with visible label, PIN dots and keypad, password field, primary, secondary (outline), text and destructive buttons, bottom sheet, confirmation dialog, merge stack card, Undo message (snackbar), coach mark, progress bar, skeleton row, inline error, empty state block, expandable section.
 
 Each component needs: default, pressed, focused, error where it applies, in **Dark and Light**. Submit buttons have no disabled state.
 
@@ -417,10 +428,18 @@ Handoff:
 - Mark each screen's pattern name in the frame description.
 - Share the Figma link or exported frames. The build then starts with the parser and database.
 
-## 16. Open design questions
+## 16. Decided and open
 
-- PIN length (4 or 6) and whether setup can be skipped.
-- Forgot PIN erases all data. Acceptable?
-- How long Undo stays available: the message only, or also Merge history.
+**Decided**
+- The user chooses the lock: 4-digit PIN, 6-digit PIN or password (4-digit PIN selected by default).
+- Special sessions can be created at any time. A special session wins for payments inside its window.
+- Undo: a message for about 8 seconds, plus Merge history in Settings for merges.
+- "offering" and "Offering" are one group. "Offertory" counts as "Offering", shown as *Also counted: Offertory*.
+- No database encryption.
+
+**Open**
+- Forgot PIN or password erases all data. Acceptable?
+- Confirm "Set up later" is allowed for the lock (draft says yes).
+- Other built-in pairs ("Tithes" counted as "Tithe" is proposed).
 - Logo and app icon (wordmark **AuCourant**, midnight, emerald, one gold detail).
 - Whether leadership reports need a fixed layout.

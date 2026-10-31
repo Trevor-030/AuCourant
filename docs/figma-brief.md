@@ -1,6 +1,6 @@
 # AuCourant: Figma Design Brief
 
-> Version 4. Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
+> Version 5. Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
 > Platform: **Android phone, one shared phone per church.**
 > Identity: **Midnight Emerald Royal**, dark theme by default, light theme included.
 > Design knowledge: **Kole Jain** lessons applied where they fit (section 3).
@@ -260,8 +260,15 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 - Helper for both: *You can't recover a forgotten PIN or password.*
 - Button *Save lock* is **never disabled**. If the two entries differ, tapping it shows: *The two entries don't match. Enter them again.* A password under 6 characters shows: *Use at least 6 characters.*
 - Text button *Set up later*.
-- Then *Use fingerprint*: *Unlock with your fingerprint. Your PIN or password still works.* Buttons *Turn on fingerprint*, *Not now*.
+- Then **A5b Save recovery code**, then *Use fingerprint*: *Unlock with your fingerprint. Your PIN or password still works.* Buttons *Turn on fingerprint*, *Not now*.
 - The lock is never saved as a draft. The lock type can be changed later in Settings.
+
+**A5b. Save recovery code** (Form, centered)
+- Title *Save your recovery code*. Body: *If you forget your PIN or password, this code unlocks the app. Nothing is erased.*
+- The code in a large block, three groups of four, Inter 500 at 20 with wide letter spacing, fake example `K7M2-9QXA-4TNR`.
+- Helper: *Write it down and keep it safe, for example with a church leader. It is shown only once.*
+- Buttons: *Copy code* (outline), *Finish setup* (filled, never disabled).
+- Not shown when lock setup is skipped. Shown again for a new code when the lock is reset or the code is remade.
 
 **A6. Lock screen** (Form, centered): shown when the app opens. Two variants.
 - **PIN variant:** *Enter your PIN*, 4 or 6 dots, keypad.
@@ -269,7 +276,13 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 - Both: *Use fingerprint* when on.
 - Wrong entry: *That PIN doesn't match. Try again.* or *That password doesn't match. Try again.*
 - Too many tries: *Too many tries. Wait 30 seconds, then try again.*
-- Link *Forgot PIN or password* opens a dialog: *Erase all AuCourant data from this phone? You'll need a new lock and a fresh scan. Reports you exported stay in your files.* Buttons *Erase data* (error red), *Cancel* (default focus).
+- Link *Forgot PIN or password* opens A7 Reset lock.
+
+**A7. Reset lock** (Form, centered)
+- Title *Reset your lock*. Label *Recovery code*, placeholder `XXXX-XXXX-XXXX`. Button *Reset lock*, never disabled.
+- Wrong code: *That code doesn't match. Check it and try again.* Too many tries: *Too many tries. Wait 30 seconds, then try again.*
+- Success goes to A5 titled *Set a new lock*, then A5b with a **new** recovery code. The old code stops working. No data is erased.
+- Text link *I lost my recovery code* opens the last-resort dialog: *Erase all AuCourant data from this phone? Payments come back from your messages after a new scan, but your group names, merges and sessions are lost. Exported reports stay in your files.* Buttons *Erase data* (error red), *Cancel* (default focus).
 
 ### B. Home (Dashboard)
 Priority order, top to bottom: 1 total, 2 needs attention, 3 top groups.
@@ -343,7 +356,7 @@ Two tabs: **Merges (2)** and **Not read (1)**.
 - **Weekly service** (a full page, Form, in Settings): *Day of week* (Sunday selected), *Start time*, *End time*, button *Save weekly service*.
 
 ### J. Settings (Settings)
-- Rows: *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Lock type*, *Change PIN or password*, *Use fingerprint* switch), *Merge history*, *Scan messages again*, *Networks supported* (MTN), *About AuCourant*, *Delete all data*.
+- Rows: *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Lock type*, *Change PIN or password*, *Use fingerprint* switch), *Recovery code* (button *Make a new recovery code*, opens A5b after the lock is checked), *Merge history*, *Scan messages again*, *Networks supported* (MTN), *About AuCourant*, *Delete all data*.
 - *Delete all data* opens a dialog: *Delete all AuCourant data from this phone? Reports you exported stay in your files.* Buttons *Delete data* (error red), *Cancel* (default focus).
 
 ### J2. Merge history (List / Index)
@@ -357,11 +370,11 @@ Each flow is one Figma section with a start frame and links wired.
 
 | Flow | Path |
 |---|---|
-| F1 First run | A1, A2 (denied branch), A3, A4, A5 (choose lock type), fingerprint step, B |
+| F1 First run | A1, A2 (denied branch), A3, A4, A5 (choose lock type), A5b, fingerprint step, B |
 | F2 Review merges | B, Review now, G1 stack, Confirm merge, Undo message, next card, Everything is sorted |
 | F3 Fix one payment | E, tap row, F, Group row, Change group sheet, pick group, Undo message |
 | F4 Export | Export tab, H (defaults), Customize fields, Export report, success, Share file |
-| F5 Forgot lock | A6, wrong entry, too many tries, Forgot PIN or password, Erase data dialog, A1 |
+| F5 Forgot lock | A6, wrong entry, Forgot PIN or password, A7, enter recovery code, A5 new lock, A5b new code, B. Branch: I lost my recovery code, erase dialog, A1 |
 
 Use Smart Animate keyed to matching layer names. Link transitions use the tokens in section 10.
 
@@ -397,7 +410,7 @@ Empty and loading states keep the same frame (list surface, header, search) as t
 
 ## 12. Components to build in Figma
 
-App bar, bottom navigation, total card (gradient), attention card (decision), group row, payment row with date header, search field, filter chip, checkbox row, radio, switch, text field with visible label, PIN dots and keypad, password field, primary, secondary (outline), text and destructive buttons, bottom sheet, confirmation dialog, merge stack card, Undo message (snackbar), coach mark, progress bar, skeleton row, inline error, empty state block, expandable section.
+App bar, bottom navigation, total card (gradient), attention card (decision), group row, payment row with date header, search field, filter chip, checkbox row, radio, switch, text field with visible label, PIN dots and keypad, password field, recovery code block, primary, secondary (outline), text and destructive buttons, bottom sheet, confirmation dialog, merge stack card, Undo message (snackbar), coach mark, progress bar, skeleton row, inline error, empty state block, expandable section.
 
 Each component needs: default, pressed, focused, error where it applies, in **Dark and Light**. Submit buttons have no disabled state.
 
@@ -431,15 +444,13 @@ Handoff:
 ## 16. Decided and open
 
 **Decided**
-- The user chooses the lock: 4-digit PIN, 6-digit PIN or password (4-digit PIN selected by default).
+- The user chooses the lock: 4-digit PIN, 6-digit PIN or password (4-digit PIN selected by default). Setup can be done later.
+- A **recovery code** resets a forgotten lock without erasing data. Erase is only the last resort.
 - Special sessions can be created at any time. A special session wins for payments inside its window.
 - Undo: a message for about 8 seconds, plus Merge history in Settings for merges.
-- "offering" and "Offering" are one group. "Offertory" counts as "Offering", shown as *Also counted: Offertory*.
+- "offering" and "Offering" are one group. "Offertory" counts as "Offering", "Tithes" counts as "Tithe", shown as *Also counted: Offertory*.
 - No database encryption.
 
 **Open**
-- Forgot PIN or password erases all data. Acceptable?
-- Confirm "Set up later" is allowed for the lock (draft says yes).
-- Other built-in pairs ("Tithes" counted as "Tithe" is proposed).
 - Logo and app icon (wordmark **AuCourant**, midnight, emerald, one gold detail).
 - Whether leadership reports need a fixed layout.

@@ -1,8 +1,8 @@
 # AuCourant: Figma Design Brief
 
-> Version 5. Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
+> Version 6 (purple removed, Instrument Serif, number references, welcome screens reworked). Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
 > Platform: **Android phone, one shared phone per church.**
-> Identity: **Midnight Emerald Royal**, dark theme by default, light theme included.
+> Identity: **Midnight Emerald Gold**, dark theme by default, light theme included. No purple anywhere.
 > Design knowledge: **Kole Jain** lessons applied where they fit (section 3).
 > Rules applied: anti-slop, typography, spacing, colour-palette, empty-states, errors, verbs, labels, page-patterns, surfaces, forms, defaults, loaders, motion, reduced-motion.
 
@@ -24,7 +24,7 @@ Tone: **quiet luxury, calm, trustworthy.** This is church money. Luxury here mea
 
 1. **UI skill hard rules** win on working screens (surfaces, forms, motion, loaders, anti-slop).
 2. **Kole Jain lessons** shape structure, colour, hierarchy and process.
-3. **Midnight Emerald Royal** wins on brand moments only (Welcome, Home total card).
+3. **Midnight Emerald Gold** wins on brand moments only (Welcome, Home total card).
 
 ## 3. Kole Jain design knowledge applied
 
@@ -33,13 +33,13 @@ Tone: **quiet luxury, calm, trustworthy.** This is church money. Luxury here mea
 | **4-layer colour model.** Neutral foundation first, accent as a ramp, semantic colours break the brand palette, theming by shifting the neutrals | Dark mode now has **4 background layers, 2 strokes, 3 text shades** (section 5). Emerald is a small ramp with real pressed states. Status colours (error red, warning amber) are not brand colours. Success is a gold check **plus text**, so green stays the action colour. |
 | **Dark mode needs about double the step between neutrals, and surfaces get lighter as they rise** | Dark steps are 0.04 to 0.05 in perceived lightness, light steps about 0.02. Sheets, dialogs and menus use the lightest dark layer. Shadows are replaced by lighter surfaces. |
 | **Icon colour only for status. Neutral balance. Never invert light into dark. Red stays red** | Icons are neutral by default. Colour only for status and the active tab. Dark theme is its own palette, not an inversion. Destructive actions are always error red. |
-| **Hierarchy from two weights and two colours** | Text uses Inter 400 and 500, Manrope 600 for headings, in text and secondary colour. No extra sizes to fake hierarchy. |
+| **Hierarchy from two weights and two colours** | Text uses Inter 400 and 500, Inter 600 for section titles and the big number, Instrument Serif 400 for screen titles, in text and secondary colour. No extra sizes to fake hierarchy. |
 | **Whitespace over dividers and extra cards** | Inside cards and detail screens, groups are separated by space, not lines. Long lists (Groups, Transactions) keep one hairline divider style because they scan faster with it. |
 | **Cards: group and prioritise content, not flat label lists** | Transaction detail is rebuilt: amount and sender on top, then grouped sections, with Transaction ID, Fee and Original message collapsed under *More details*. |
 | **Let the data dictate the form** | Amounts right-aligned in tabular figures. Long names truncate to one line. Skipped rows are shaded. Payments are shown as a **timeline with date headers and day totals**. |
 | **Progressive disclosure: secondary actions tucked away, onboarding one tooltip at a time** | Export fields hide under *Customize fields*. First-use coach marks show **one at a time, three in total**. Secondary actions sit in menus. |
 | **Invisible UI: hidden states and tooltips** | Every icon-only control has a long-press label. Coach marks are designed, not skipped. |
-| **Design for all states, and in flows, not isolated screens** | Every screen has loading, empty, error and populated. Five flows are wired as prototypes (section 9). |
+| **Design for all states, and in flows, not isolated screens** | Every screen has loading, empty, error and populated. Six flows are wired as prototypes (section 9). |
 | **Mobile: one screen does one thing, new function goes to a bottom sheet or new page, no double-nested cards, 44px or larger targets** | Applied through the surface rules in section 8. Targets are 48. No card sits inside another card. |
 | **Swipe gestures as shortcuts, always with a visible button** | Merge review is a **stack, one card at a time**. Swipe right confirms, swipe left keeps separate. Both buttons stay visible. |
 | **Optimistic UI** | Confirming a merge or moving a payment happens at once, with an **Undo message** at the bottom. No confirmation dialog for things that can be undone. |
@@ -80,8 +80,8 @@ Tone: **quiet luxury, calm, trustworthy.** This is church money. Luxury here mea
 - Keep list frames and search. Removing decoration must never leave a bare list.
 
 **Typography**
-- **Manrope** for screen titles, section titles and big numbers. **Inter** for everything else, with tabular figures for amounts.
-- Weights **400, 500, 600 only**. Manrope 600. Inter 400 body, 500 labels and buttons.
+- **Instrument Serif** (one weight, 400) for the AuCourant wordmark, onboarding titles (Welcome, Scan complete) and screen titles. **Inter** for everything else, with tabular figures for amounts. Section titles and the 32 big number are Inter 600. Both fonts are free (open font licence).
+- Weights: Inter 400 body, 500 labels and buttons, 600 section titles and big number. Instrument Serif is 400 only, never faked bold.
 - Sizes: **12 meta, 14 secondary, 16 body, 20 section title, 24 screen title, 32 big number**.
 - List rows are 14 or 16, never 12. 12 is only for timestamps and helper text.
 - Line height: titles 1.2, body 1.5.
@@ -95,7 +95,7 @@ Tone: **quiet luxury, calm, trustworthy.** This is church money. Luxury here mea
 - Every element touches at least two edges of its container (name on the left edge, amount on the right edge, sub-line under the name). Nothing floats in empty space.
 
 **Colour balance**
-- Dark target about **60% midnight, 25% forest and emerald, 10% purple, 5% gold**. Treat it as a sanity check on screenshots. The layers in section 5 do the real work.
+- Dark target about **60% midnight, 30% forest and emerald, 5% umber decision surfaces, 5% gold**. Treat it as a sanity check on screenshots. The layers in section 5 do the real work.
 - Every list sits on a visible surface with a **1px border**.
 - Status is never colour alone. Always add text or an icon.
 
@@ -122,14 +122,15 @@ Tone: **quiet luxury, calm, trustworthy.** This is church money. Luxury here mea
 |---|---|
 | Midnight | `#080D0C` |
 | Emerald | `#0D5A40` |
-| Royal Aubergine | `#35204A` |
+| Forest Mid (gradient middle) | `#0F4636` |
+| Deep Teal (gradient end) | `#0A2A26` |
 | Champagne Gold | `#C8AA72` |
 | Jade | `#35A879` |
-| Imperial Purple | `#542B68` |
-| Velvet Violet | `#76518D` |
 | Ivory Mist | `#E8EEE9` |
-| Black Plum | `#201629` |
-| Soft Orchid | `#E5D9EB` |
+| Deep Umber (dark decision surface) | `#1C1910` |
+| Soft Champagne (light decision surface) | `#F3ECDB` |
+
+Royal Aubergine, Imperial Purple, Velvet Violet, Black Plum and Soft Orchid are **removed**. No purple, violet or plum anywhere.
 
 ### Layer 1: neutral foundation
 
@@ -139,7 +140,7 @@ Tone: **quiet luxury, calm, trustworthy.** This is church money. Luxury here mea
 | `bg-1` cards and lists | `#0E1A16` | `#FFFFFF` |
 | `bg-2` inset areas, selected rows | `#13241E` | `#EAF0EC` |
 | `bg-3` sheets, dialogs, menus (the highest layer) | `#1A2F27` | `#FFFFFF` with shadow |
-| `bg-decision` merge and attention surfaces | `#201629` | `#E5D9EB` |
+| `bg-decision` merge and attention surfaces | `#1C1910` | `#F3ECDB` |
 | `stroke` | Ivory at 10% | Charcoal at 10% |
 | `stroke-strong` | Ivory at 18% | Charcoal at 20% |
 | `text` | `#E8EEE9` | `#1D2321` |
@@ -159,7 +160,7 @@ Dark layers step up in lightness by about 0.04 to 0.05 each (twice the light the
 | Selected row tint | `bg-2` plus Jade 1px border | `#DDEBE5` |
 | Disabled button | `bg-3` fill, `text-tertiary` label | `#EAF0EC` fill, `text-tertiary` label |
 
-Optional: generate the full 50 to 900 ramp from `#0D5A40` in a ramp tool and keep 600 as the base. Darker steps should drift slightly toward blue, which matches the purple end of the brand.
+Optional: generate the full 50 to 900 ramp from `#0D5A40` in a ramp tool and keep 600 as the base. Darker steps drift slightly toward teal, which matches the gradient end.
 
 ### Layer 3: semantic (deliberately off-brand)
 
@@ -184,13 +185,17 @@ Dark and Light share one structure. Changing the brand hue means shifting the ne
 | Jade on Midnight and on `bg-3` | 6.6 and 4.8 |
 | Ivory on Emerald and on pressed Emerald | 7.0 and 9.1 |
 | Gold on Midnight | 8.8 |
-| Soft Orchid on Black Plum | 12.8 |
-| Ivory on the gradient middle and end | 10.2 and 12.2 |
+| Ivory on Deep Umber | about 15.0 |
+| Secondary and tertiary text on Deep Umber | about 7.9 and 5.9 |
+| Ivory on the gradient middle and end | about 9.2 and 13.1 |
 | Charcoal on Light canvas | 14.7 |
+| Charcoal on Soft Champagne | about 13 |
 | Tertiary text on Light canvas and on white | 5.0 and 5.5 |
 | Emerald on white | 8.2 |
 
-**Two traps:** Emerald `#0D5A40` on Midnight is only **2.4**, so it is a button fill only, never text, icon or focus. Velvet Violet on Black Plum is **2.8**, so decoration only.
+**One trap:** Emerald `#0D5A40` on Midnight is only **2.4**, so it is a button fill only, never text, icon or focus.
+
+The values marked "about" were worked out by hand after the purple was removed. Recheck them in a contrast tool when the variables exist.
 
 Radius and edges: see section 6. Dark has no shadows. Use the lighter layer and a 1px top edge highlight (Ivory at 6%).
 
@@ -212,13 +217,13 @@ Radius and edges: see section 6. Dark has no shadows. Use the lighter layer and 
 
 Turn on Figma corner smoothing at 60% for cards, sheets and buttons.
 
-**Big number:** Manrope 600, 32, letter spacing -1%.
+**Big number:** Inter 600, 32, tabular figures, letter spacing -1%.
 
 **Amounts:** right-aligned, Inter tabular figures, `GHS 2,450.00`.
 
 **Truncation:** names and references are one line with an ellipsis. Full text is on the detail screen. Test every row with a very long name and a very large amount.
 
-**Gradient and noise (brand moments only):** the signature gradient `#0D5A40 → #173D34 → #35204A` with 3% noise, on the Welcome hero and the Home total card. Text on it passes contrast. One soft emerald glow behind Welcome and Scan complete only. Focus is a soft Jade ring (3px, 35% opacity).
+**Gradient and noise (brand moments only):** the signature gradient `#0D5A40 → #0F4636 → #0A2A26` with 3% noise, on the Welcome hero and the Home total card. Text on it passes contrast. One soft emerald glow behind Welcome and Scan complete only. Gold is used for the wordmark's "Au", the thin line under the big total, the success check and hairlines. Focus is a soft Jade ring (3px, 35% opacity).
 
 ## 7. Navigation and thumb zone
 
@@ -234,10 +239,15 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 
 ### A. First run and lock
 
-**A1. Welcome** (Form, centered): gradient hero with noise and soft emerald glow.
-- Title: *Sort your MoMo money by reference*
-- Body: *AuCourant reads MoMo messages on this phone and groups the money you receive. Nothing leaves the phone.*
+**A1. Welcome** (Form, centered): gradient hero with 3% noise and soft emerald glow. No photo (church privacy, and stock photos feel fake).
+- Wordmark: **AuCourant** in Instrument Serif, "Au" in Champagne Gold, tagline *Stay au courant with your MoMo.*
+- **Hero illustration** (plain shapes only, no people): three grey message bubbles with text lines at the top, sliding down into three tidy group cards labelled *Offering*, *Tithe*, *Harvest*. It shows what the app does in one look.
+- Title (Instrument Serif, 32): *Sort your MoMo money by reference*
+- Body: *AuCourant reads MoMo messages on this phone and groups the money you receive.*
+- **Trust row** above the button: lock icon (Phosphor, 16) and *Nothing leaves this phone. No account needed.* Plain text, no pill wrapper.
+- **Permission helper** above the button: *Android will ask to read messages. Choose Allow so AuCourant can sort them.*
 - Button: *Allow message access*. Text link: *How your messages stay private*
+- One action on the screen. No carousel, no extra steps.
 
 **A2. Permission denied** (Form, centered)
 - Title: *Message access is off*
@@ -248,9 +258,12 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 - Determinate progress bar (a transform reveal), text *Reading messages… 120 of 480*
 - Helper: *This only happens once. Keep the app open.*
 
-**A4. Scan complete** (Form, centered)
-- Rows: *Payments received 312*, *Groups found 7*, *With no reference 18*
-- Button: *Set up lock*
+**A4. Scan complete** (Form, centered): gold check (static, 100ms fade), soft emerald glow.
+- Title (Instrument Serif): *Your payments are sorted*
+- Rows: *Payments received 312*, *Groups found 7*, *With no reference 18*, *Codes to name 2* (only when numbers were found as references)
+- Plain text line under the rows: *Offering, Tithe, Harvest and 4 more*. Not chips.
+- Tappable text link on the no-reference row: *See these*.
+- Button: *Set up lock*. Text link under it: *Set up later*.
 
 **A5. Set up lock** (Form, centered)
 - Title *Lock AuCourant*. Body: *Choose how to unlock the app on this shared phone.*
@@ -282,13 +295,13 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 - Title *Reset your lock*. Label *Recovery code*, placeholder `XXXX-XXXX-XXXX`. Button *Reset lock*, never disabled.
 - Wrong code: *That code doesn't match. Check it and try again.* Too many tries: *Too many tries. Wait 30 seconds, then try again.*
 - Success goes to A5 titled *Set a new lock*, then A5b with a **new** recovery code. The old code stops working. No data is erased.
-- Text link *I lost my recovery code* opens the last-resort dialog: *Erase all AuCourant data from this phone? Payments come back from your messages after a new scan, but your group names, merges and sessions are lost. Exported reports stay in your files.* Buttons *Erase data* (error red), *Cancel* (default focus).
+- Text link *I lost my recovery code* opens the last-resort dialog: *Erase all AuCourant data from this phone? Payments come back from your messages after a new scan, but your group names, merges, reference codes and sessions are lost. Exported reports stay in your files.* Buttons *Erase data* (error red), *Cancel* (default focus).
 
 ### B. Home (Dashboard)
 Priority order, top to bottom: 1 total, 2 needs attention, 3 top groups.
 - Service selector at the top: *Sunday, 26 Oct 2026* (opens the service picker sheet).
 - **Total card** (gradient with noise), thin gold line under the number: **GHS 4,310.00 received**, *38 payments*.
-- **Needs attention** card on `bg-decision`: *3 need a decision*, lines *2 suggested merges*, *1 message not read*, button *Review now*. When nothing needs attention it becomes one quiet row: *Everything is sorted*.
+- **Needs attention** card on `bg-decision`: *4 need a decision*, lines *2 suggested merges*, *1 code to name*, *1 message not read*, button *Review now*. When nothing needs attention it becomes one quiet row: *Everything is sorted*.
 - **Top groups** list on `bg-1`: Offering, Tithe, Harvest, Thanksgiving, Welfare, amounts right-aligned. Last row *View all groups*.
 - No Export button here. The Export tab covers it.
 - Coach marks (first use only, one at a time): service selector, then Review now, then Export tab. Dismiss with *Dismiss*.
@@ -302,7 +315,7 @@ Priority order, top to bottom: 1 total, 2 needs attention, 3 top groups.
 
 ### D. Group detail (Detail)
 - Header: group name (**inline rename**, see below), total, payment count.
-- When the group also counts other wordings, a line in secondary text under the name: *Also counted: Offertory*, with a text link *Manage* that opens Merge history.
+- When the group also counts other wordings, a line in secondary text under the name: *Also counted: Offertory, 1* (wordings and number codes that join this group), with a text link *Manage* that opens Merge history.
 - Menu: *Merge into another group*. Not available for No reference.
 - Payments as a timeline: date headers with day totals, rows with sender and amount.
 - **Inline rename:** tap the pencil beside the name. The title turns into an input in the **same box**, nothing around it moves. Enter saves, Escape cancels. No sheet, no Save row.
@@ -317,16 +330,16 @@ Priority order, top to bottom: 1 total, 2 needs attention, 3 top groups.
 - Filtered empty: *No payments match your filters*, *Try a wider period or clear filters.*, button *Clear all filters*.
 
 ### F. Transaction detail (Detail)
-- Top: amount (Manrope 32), sender name, time.
+- Top: amount (Inter 600, 32), sender name, time.
 - **Group** row, tappable as a whole: *Offering*, with a chevron. Opens the Change group sheet.
-- Section *Payment*: *Reference* (or *No reference*, helper *The giver did not type a note.*), *Service*.
+- Section *Payment*: *Reference* (or *No reference*, helper *The giver did not type a note.*; a number shows as *1, counted as Offering*), *Service*.
 - Section *Sender*: name, phone number.
 - Collapsed section *More details*: Transaction ID, Fee, Original message (raw SMS).
 - Sections are separated by space, not lines.
 - **Change group sheet:** list of groups plus a *Group name* field labelled *Create new group*, all inside the one sheet. Choosing a group closes the sheet and shows the Undo message *Moved to Offering. Undo*.
 
 ### G. Review queue (Inbox / queue)
-Two tabs: **Merges (2)** and **Not read (1)**.
+Three tabs: **Merges (2)**, **Codes (1)** and **Not read (1)**.
 
 **G1. Merge suggestions** (stacked cards, one at a time)
 - Counter *1 of 2*. The card on `bg-decision`: *Thanksgiving* (12 payments, GHS 840.00) and *Thanks giving* (3 payments, GHS 120.00), text *Looks like the same group*.
@@ -339,6 +352,13 @@ Two tabs: **Merges (2)** and **Not read (1)**.
 - List of raw messages the app could not understand. Rows shaded as inactive.
 - Row actions: *Copy message*, *Skip message* (shows Undo message).
 - Helper: *We couldn't read this message. Copy it and send it to support so we can add it.*
+
+**G3. Name a code** (a number a giver typed as a reference, like 5)
+- List of unnamed codes, each row: the number, payment count, total, and a text button *Name this code*. Until named, its payments sit in a group called *Code 5*, so every payment still has a group.
+- *Name this code* opens a **bottom sheet** (one field plus a choice): label *Group name*, a short list of existing groups to pick from, or type a new name. Button *Save name*, never disabled.
+- If the name matches an existing group (for example Offering), the code joins it. Otherwise a new group is made. It happens at once with the Undo message: *Named code 5 as Welfare. Undo*.
+- Naming a code is **not** a manual fix, same as confirming a merge.
+- Empty: *No codes to name*, *Numbers used as references will show up here once.*, button *Go to Home*.
 
 ### H. Export (Form)
 - *Service* dropdown, pre-selected to the current service.
@@ -356,13 +376,21 @@ Two tabs: **Merges (2)** and **Not read (1)**.
 - **Weekly service** (a full page, Form, in Settings): *Day of week* (Sunday selected), *Start time*, *End time*, button *Save weekly service*.
 
 ### J. Settings (Settings)
-- Rows: *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Lock type*, *Change PIN or password*, *Use fingerprint* switch), *Recovery code* (button *Make a new recovery code*, opens A5b after the lock is checked), *Merge history*, *Scan messages again*, *Networks supported* (MTN), *About AuCourant*, *Delete all data*.
+- Rows: *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Lock type*, *Change PIN or password*, *Use fingerprint* switch), *Recovery code* (button *Make a new recovery code*, opens A5b after the lock is checked), *Reference codes*, *Merge history*, *Scan messages again*, *Networks supported* (MTN), *About AuCourant*, *Delete all data*.
 - *Delete all data* opens a dialog: *Delete all AuCourant data from this phone? Reports you exported stay in your files.* Buttons *Delete data* (error red), *Cancel* (default focus).
 
 ### J2. Merge history (List / Index)
-- List on `bg-1`: *Thanks giving into Thanksgiving*, date, payment count, and a text button *Undo merge*. Built-in pairs appear too, for example *Offertory into Offering, built in*.
+- List on `bg-1`: *Thanks giving into Thanksgiving*, date, payment count, and a text button *Undo merge*. Built-in pairs appear too, for example *Offertory into Offering, built in*. Named codes appear as *Code 5 into Welfare*.
 - After *Undo merge* the change happens at once with the Undo message: *Split Thanks giving from Thanksgiving. Undo*. No dialog (it can be undone).
 - Empty: *No merges yet*, *Merged groups show up here so you can undo them.*, button *Go to Groups*.
+
+### J3. Reference codes (List / Index, in Settings)
+- Helper at the top: *Some givers type a number as the reference. Say what each number means for your church.*
+- List on `bg-1`: number left, group name right, for example *1, Offering*, *2, Tithe*, *3, Harvest*. Hairline dividers.
+- Tap a row opens a **bottom sheet**: *Code* (number, read-only) and *Group name*, button *Save name*. Changing the group moves every payment with that code, shown with an Undo message.
+- Button *Add a code* (bottom sheet with two fields, *Code* and *Group name*, button *Save code*, never disabled). A code that is already listed shows: *This number already has a group. Edit it from the list.*
+- Empty: *No codes yet*, *Add a number here, or name it when it first shows up.*, button *Add a code*.
+- Codes mean the same thing in every service. They differ from one church to another, so the list starts empty.
 
 ## 9. Flows to prototype (design flows, not lone screens)
 
@@ -375,6 +403,7 @@ Each flow is one Figma section with a start frame and links wired.
 | F3 Fix one payment | E, tap row, F, Group row, Change group sheet, pick group, Undo message |
 | F4 Export | Export tab, H (defaults), Customize fields, Export report, success, Share file |
 | F5 Forgot lock | A6, wrong entry, Forgot PIN or password, A7, enter recovery code, A5 new lock, A5b new code, B. Branch: I lost my recovery code, erase dialog, A1 |
+| F6 Name a code | B, Review now, Codes tab, Name this code, sheet, Save name, Undo message |
 
 Use Smart Animate keyed to matching layer names. Link transitions use the tokens in section 10.
 
@@ -437,7 +466,7 @@ Personal budgeting, spending categories, charts, fee warnings, accounts and logi
 Handoff:
 - Frame size **360 by 800**. Name frames like `A1 Welcome`, `B Home`, `G1 Merge suggestions`. Light frames end with ` Light`.
 - Figma variables with **Dark and Light modes** for every token. No loose hex values. Auto layout everywhere. Nudge amount 8.
-- Text styles only Manrope and Inter, weights 400, 500, 600.
+- Text styles only Instrument Serif (400) and Inter (400, 500, 600).
 - Mark each screen's pattern name in the frame description.
 - Share the Figma link or exported frames. The build then starts with the parser and database.
 
@@ -450,7 +479,12 @@ Handoff:
 - Undo: a message for about 8 seconds, plus Merge history in Settings for merges.
 - "offering" and "Offering" are one group. "Offertory" counts as "Offering", "Tithes" counts as "Tithe", shown as *Also counted: Offertory*.
 - No database encryption.
+- **Purple removed.** Identity is now Midnight Emerald Gold. Decision surfaces are Deep Umber (dark) and Soft Champagne (light).
+- **Fonts:** Instrument Serif for the wordmark, onboarding titles and screen titles. Inter for everything else.
+- **Welcome screen:** drawn illustration instead of a photo, trust row and permission helper above the button.
+- **Number references:** a per-church code list (code to group name). Codes mean the same every week. Naming a code is not a manual fix.
 
 **Open**
-- Logo and app icon (wordmark **AuCourant**, midnight, emerald, one gold detail).
+- Logo and app icon (wordmark **AuCourant** in Instrument Serif, "Au" in gold, on midnight and emerald).
+- How long a number can be before it stops counting as a code (see architecture).
 - Whether leadership reports need a fixed layout.

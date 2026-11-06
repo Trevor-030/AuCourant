@@ -1,14 +1,14 @@
 # AuCourant: Product Requirements Document
 
 > Name: AuCourant. Tagline: *Stay au courant with your MoMo.*
-> Status: Draft v7 (recovery code replaces erase-only reset, known pairs confirmed).
+> Status: Draft v8 (number references added, purple removed from the visual identity).
 > Intent only. Engineering decisions live in `architecture.md`. Visual decisions live in `figma-brief.md`.
 
 ---
 
 ## 1. Problem Statement
 
-Churches and similar organizations collect money all week through mobile money (MoMo). Each payment arrives as an SMS on one phone, often with a short reference written by the giver (offering, harvest, thanksgiving, welfare, and so on).
+Churches and similar organizations collect money all week through mobile money (MoMo). Each payment arrives as an SMS on one phone, often with a short reference written by the giver (offering, harvest, thanksgiving, welfare, and so on). Some churches give a **number** instead of a word (for example 1 or 2).
 
 The financial staff must read these messages one by one and sort them by purpose before they can report to leadership. The work is slow, repetitive, and easy to get wrong. A mistyped reference, a missed message, or a mis-sorted amount means the numbers leadership sees may not match the money received.
 
@@ -24,6 +24,7 @@ The financial staff must read these messages one by one and sort them by purpose
 | MTN SMS come in at least 3 shapes: Cash In (no reference), Payment sent (reference shown as "-" when empty), Payment received (has a Reference field) | **Observed** from real samples. |
 | In "Payment received" SMS the Reference field shows up in 3 ways: a typed purpose (for example "offering"), blank, or auto-filled by the network with the sender's name, phone number and text like "tf from VODAFONE" | **Observed** in 4 real samples. Telecel and AirtelTigo formats unknown. |
 | Typed references vary in case, spelling and spacing ("Thanksgiving", "Thanks giving") | **Assumption.** No messy samples yet. The pilot will show how messy real references are. |
+| Some churches use a number as the reference (1, 2, and so on). A number means the same thing every week, but different churches use different numbers | **Stated** by the founder. No real SMS sample with a number yet. |
 
 ## 3. Thesis (why build it)
 
@@ -43,7 +44,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 >
 > We'll know we're **WRONG** if **most money lands in "No reference", or the treasurer keeps sorting by hand alongside the app, or grouped references are wrong often enough that they stop trusting the totals.**
 
-**What counts as a manual fix:** moving a payment to a different group, or editing a group by hand to correct the app's work. **Confirming a suggested merge is not a manual fix** (decided by the founder), because it is a one-time decision that the app remembers.
+**What counts as a manual fix:** moving a payment to a different group, or editing a group by hand to correct the app's work. **Confirming a suggested merge is not a manual fix** (decided by the founder), because it is a one-time decision that the app remembers. **Naming a number code is not a manual fix either** (Claude's decision, same logic, founder can reverse it): the app cannot know what a church's number means, so the treasurer says it once.
 
 ## 5. Target User & JTBD
 
@@ -68,19 +69,21 @@ A second, smaller audience exists: individuals who want to understand their own 
 3. A reference is only what the giver typed. If the Reference field is blank, "-", or filled by the network with the sender's own details, the payment has **no reference**.
 4. It sorts payments into groups by reference (offering, harvest, thanksgiving, welfare, and so on). Payments with no reference go to the **No reference** group. Every payment ends up in a group.
 5. References that differ only by capital letters or punctuation (for example "offering" and "Offering") are one group automatically. A small built-in list of known pairs also joins automatically, starting with **"Offertory" counted as "Offering"**, and the group always shows what it includes. Any other similar references (for example "Thanksgiving" and "Thanks giving") are **suggested** as merges and the treasurer **confirms** each one.
-6. The treasurer can move any payment to another group with one tap. Moves and merges happen at once and can be **undone** right away from a short message at the bottom of the screen, or later, for merges, from **Merge history** in Settings. The Undo message stays for about 8 seconds.
-7. The treasurer sees totals per group for a chosen service.
-8. **Services:** a weekly service on a chosen day (default Sunday), plus **special sessions** the treasurer can create at any time. Payments inside a special session count there and not in the weekly service, so nothing is counted twice.
-9. The treasurer exports the result to **Excel** and **PDF**. Staff choose which fields appear. Hiding member names and phone numbers is an **option**, not the default. Export remembers the last format and fields, so repeat exports take a few taps.
-10. **App lock:** the user chooses the lock: a 4-digit PIN, a 6-digit PIN, or a password. Fingerprint can be turned on as a faster way in. Setup can be done later. At setup the app shows a **recovery code** once. If the PIN or password is forgotten, the code resets the lock **without erasing any data**.
-11. **Appearance:** dark theme by default, light theme available.
+6. **Number references:** when a giver types a short number (1 to 3 digits) as the reference, the app looks it up in the church's **code list** (for example 1 is Offering, 2 is Tithe). The list starts empty because every church uses its own numbers. A number that is not on the list lands in its own group (*Code 5*) and is shown in the review queue, where the treasurer names it **once**. The name is remembered, and the number means the same thing in every service. The treasurer can also add or edit codes ahead of time in Settings. The app never guesses what a number means.
+7. The treasurer can move any payment to another group with one tap. Moves and merges happen at once and can be **undone** right away from a short message at the bottom of the screen, or later, for merges and named codes, from **Merge history** in Settings. The Undo message stays for about 8 seconds.
+8. The treasurer sees totals per group for a chosen service.
+9. **Services:** a weekly service on a chosen day (default Sunday), plus **special sessions** the treasurer can create at any time. Payments inside a special session count there and not in the weekly service, so nothing is counted twice.
+10. The treasurer exports the result to **Excel** and **PDF**. Staff choose which fields appear. Hiding member names and phone numbers is an **option**, not the default. Export remembers the last format and fields, so repeat exports take a few taps.
+11. **App lock:** the user chooses the lock: a 4-digit PIN, a 6-digit PIN, or a password. Fingerprint can be turned on as a faster way in. Setup can be done later. At setup the app shows a **recovery code** once. If the PIN or password is forgotten, the code resets the lock **without erasing any data**.
+12. **Appearance:** dark theme by default, light theme available. The colours are midnight, emerald and gold. **No purple.**
+13. **First impression:** the welcome screen shows what the app does with a simple drawing (messages turning into tidy groups), says plainly that nothing leaves the phone, and asks for message access with one clear button.
 
 **Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
 
 **Door check:**
 - Reading and parsing SMS across networks is a **one-way door** (everything depends on it). Prove it first with real samples.
 - The signing key for the app is also a **one-way door** (see architecture).
-- Group names, screens, and export layout are **two-way doors**. Build and adjust freely.
+- Group names, screens, colours, fonts and export layout are **two-way doors**. Build and adjust freely.
 
 ## 7. Success Metrics
 
@@ -102,6 +105,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 - No iPhone version in the first release.
 - No user accounts, roles or approvals in the first release.
 - No silent merging beyond capital letters, punctuation and the built-in known pairs. Those are always visible and can be undone.
+- No guessing what a number reference means. The treasurer says it once.
 
 ## 9. Open Questions
 
@@ -117,11 +121,13 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] Undo: a message for about 8 seconds, plus Merge history in Settings for merges (Claude's decision, founder said "decide").
 - [x] Founder believes 0 manual fixes per service is realistic. To be proven in the pilot, not assumed.
 - [x] Fix target 0, time target about 3 minutes, name AuCourant, Android only, one phone, direct APK, free resources only, export field choice and hide-names option.
-- [x] Visual identity: Midnight Emerald Royal, dark theme default with a light theme.
-
 - [x] Erasing all data after a forgotten PIN or password is **not acceptable** (founder). A recovery code resets the lock and keeps the data. Erase stays only as a last resort if both the lock and the code are lost.
 - [x] Lock setup can be done later (offered once).
 - [x] Built-in known pairs: "Offertory" counted as "Offering" and "Tithes" counted as "Tithe".
+- [x] **Number references:** some churches use numbers. A number means the same thing every week, but differs between churches (founder). So each church has its own code list, empty at the start.
+- [x] **Visual identity:** was Midnight Emerald Royal, now **Midnight Emerald Gold** (founder asked to remove purple). Dark theme default with a light theme.
+- [x] **Fonts:** Instrument Serif for the wordmark and titles, Inter for the rest (founder picked option A).
+- [x] Naming a code is not a manual fix (Claude's decision, same logic as merges).
 
 **Still open**
 - [ ] Do leadership reports need a fixed layout? A sample report from a church would settle it.
@@ -129,3 +135,5 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [ ] Telecel and AirtelTigo: no samples, so not supported yet. Add them when real messages are available.
 - [ ] Real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
 - [ ] Where will the treasurer keep the recovery code? (the app suggests writing it down and keeping it with a church leader)
+- [ ] No real SMS has a number reference yet. How do they look (spaces, full stops, 4 or more digits)? Could a giver type an amount like "50" as the reference?
+- [ ] Should first run offer to enter the church's codes before the scan, so fewer payments wait in *Code 5* style groups?

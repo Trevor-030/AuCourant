@@ -1,6 +1,6 @@
 # AuCourant: Figma Design Brief
 
-> Version 6 (purple removed, Instrument Serif, number references, welcome screens reworked). Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
+> Version 6 (purple removed, Instrument Serif, number references, welcome screens reworked, use type choice). Source of truth for the frontend design. Built from `aucourant.prd.md` and `architecture.md`.
 > Platform: **Android phone, one shared phone per church.**
 > Identity: **Midnight Emerald Gold**, dark theme by default, light theme included. No purple anywhere.
 > Design knowledge: **Kole Jain** lessons applied where they fit (section 3).
@@ -237,6 +237,8 @@ Turn on Figma corner smoothing at 60% for cards, sheets and buttons.
 
 Each screen names its page pattern. Design every screen in **Dark first, then Light**.
 
+**Wording by use type.** Mockups use the **Church** wording. **Organisation** says *period* where Church says *service* (for example *Weekly period*, *Sunday, 26 Oct 2026* stays a date). Built-in known pairs (Offertory into Offering, Tithes into Tithe) exist for Church only, so Merge history shows them for Church only. Layout, colours and flows are the same for both.
+
 ### A. First run and lock
 
 **A1. Welcome** (Form, centered): gradient hero with 3% noise and soft emerald glow. No photo (church privacy, and stock photos feel fake).
@@ -244,10 +246,23 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 - **Hero illustration** (plain shapes only, no people): three grey message bubbles with text lines at the top, sliding down into three tidy group cards labelled *Offering*, *Tithe*, *Harvest*. It shows what the app does in one look.
 - Title (Instrument Serif, 32): *Sort your MoMo money by reference*
 - Body: *AuCourant reads MoMo messages on this phone and groups the money you receive.*
+- Button: *Get started*. One action on the screen. No carousel.
+
+**A1b. Who is AuCourant for?** (Form, centered)
+- Title (Instrument Serif): *How will you use AuCourant?* Body: *This sets up the right defaults. You can change it later in Settings.*
+- Single-select list on a bordered `bg-1` surface, three rows, each 48 or taller, radius 8, with a Phosphor 24 icon, a title and one grey line:
+  - **Church** (church icon): *Sort offerings, tithes and special services.* Selected by default.
+  - **Organisation** (buildings icon): *Sort payments by reference for your team or group.*
+  - **Personal** (user icon): *Understand your own MoMo money.* Grey text *Coming soon*. Not selectable.
+- Selected row: `bg-2` tint, Jade 1px border, Jade radio dot. No card inside a card.
+- Sticky bottom button, never disabled, label follows the choice: *Set up for church* or *Set up for organisation*.
+- Tapping *Personal* shows nothing selected and the helper *Personal use is coming. Choose Church or Organisation for now.*
+
+**A1c. Message access** (Form, centered)
+- Title (Instrument Serif): *Let AuCourant read your MoMo messages*. Body: *AuCourant reads MoMo messages on this phone and groups the money you receive.*
 - **Trust row** above the button: lock icon (Phosphor, 16) and *Nothing leaves this phone. No account needed.* Plain text, no pill wrapper.
-- **Permission helper** above the button: *Android will ask to read messages. Choose Allow so AuCourant can sort them.*
+- **Permission helper:** *Android will ask to read messages. Choose Allow so AuCourant can sort them.*
 - Button: *Allow message access*. Text link: *How your messages stay private*
-- One action on the screen. No carousel, no extra steps.
 
 **A2. Permission denied** (Form, centered)
 - Title: *Message access is off*
@@ -376,7 +391,7 @@ Three tabs: **Merges (2)**, **Codes (1)** and **Not read (1)**.
 - **Weekly service** (a full page, Form, in Settings): *Day of week* (Sunday selected), *Start time*, *End time*, button *Save weekly service*.
 
 ### J. Settings (Settings)
-- Rows: *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Lock type*, *Change PIN or password*, *Use fingerprint* switch), *Recovery code* (button *Make a new recovery code*, opens A5b after the lock is checked), *Reference codes*, *Merge history*, *Scan messages again*, *Networks supported* (MTN), *About AuCourant*, *Delete all data*.
+- Rows: *Used for* (opens a bottom sheet with the same three choices as A1b), *Weekly service*, *Appearance* (*Dark*, *Light*, *Match phone*), *App lock* (*Lock type*, *Change PIN or password*, *Use fingerprint* switch), *Recovery code* (button *Make a new recovery code*, opens A5b after the lock is checked), *Reference codes*, *Merge history*, *Scan messages again*, *Networks supported* (MTN), *About AuCourant*, *Delete all data*.
 - *Delete all data* opens a dialog: *Delete all AuCourant data from this phone? Reports you exported stay in your files.* Buttons *Delete data* (error red), *Cancel* (default focus).
 
 ### J2. Merge history (List / Index)
@@ -398,7 +413,7 @@ Each flow is one Figma section with a start frame and links wired.
 
 | Flow | Path |
 |---|---|
-| F1 First run | A1, A2 (denied branch), A3, A4, A5 (choose lock type), A5b, fingerprint step, B |
+| F1 First run | A1, A1b, A1c, A2 (denied branch), A3, A4, A5 (choose lock type), A5b, fingerprint step, B |
 | F2 Review merges | B, Review now, G1 stack, Confirm merge, Undo message, next card, Everything is sorted |
 | F3 Fix one payment | E, tap row, F, Group row, Change group sheet, pick group, Undo message |
 | F4 Export | Export tab, H (defaults), Customize fields, Export report, success, Share file |
@@ -481,10 +496,12 @@ Handoff:
 - No database encryption.
 - **Purple removed.** Identity is now Midnight Emerald Gold. Decision surfaces are Deep Umber (dark) and Soft Champagne (light).
 - **Fonts:** Instrument Serif for the wordmark, onboarding titles and screen titles. Inter for everything else.
-- **Welcome screen:** drawn illustration instead of a photo, trust row and permission helper above the button.
+- **Welcome screen:** drawn illustration instead of a photo. Welcome has one button, *Get started*. The trust row and permission helper moved to the new message access screen A1c.
+- **Use type:** first run asks *Church* or *Organisation* (A1b). *Personal* is shown as coming soon. Changeable later in Settings under *Used for*.
 - **Number references:** a per-church code list (code to group name). Codes mean the same every week. Naming a code is not a manual fix.
 
 **Open**
 - Logo and app icon (wordmark **AuCourant** in Instrument Serif, "Au" in gold, on midnight and emerald).
 - How long a number can be before it stops counting as a code (see architecture).
+- What *Personal* should do when it is built.
 - Whether leadership reports need a fixed layout.

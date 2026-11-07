@@ -23,6 +23,7 @@ The financial staff must read these messages one by one and sort them by purpose
 | Staff sort and report once per service. Services are usually on Sundays, and special sessions also happen | **Stated** by the founder. Validate with real treasurers. |
 | MTN SMS come in at least 3 shapes: Cash In (no reference), Payment sent (reference shown as "-" when empty), Payment received (has a Reference field) | **Observed** from real samples. |
 | In "Payment received" SMS the Reference field shows up in 3 ways: a typed purpose (for example "offering"), blank, or auto-filled by the network with the sender's name, phone number and text like "tf from VODAFONE" | **Observed** in 4 real samples. Telecel and AirtelTigo formats unknown. |
+| Today's manual time for one service is about 30 to 60 minutes for about 40 payments, and 1 to 2 hours for 100 or more | **Assumption (founder guess).** Time a real treasurer to confirm. |
 | Typed references vary in case, spelling and spacing ("Thanksgiving", "Thanks giving") | **Assumption.** No messy samples yet. The pilot will show how messy real references are. |
 | Some churches use a number as the reference (1, 2, and so on). A number means the same thing every week, but different churches use different numbers | **Stated** by the founder. No real SMS sample with a number yet. |
 
@@ -34,7 +35,7 @@ The financial staff must read these messages one by one and sort them by purpose
 
 **Why it beats how they cope today:** Today staff scroll SMS and sort by eye, or by notebook or spreadsheet. The app does the sorting as messages arrive, groups similar references together, and produces the report. The switch is worth it only if staff spend clearly less time and trust the totals as much as their own count.
 
-A second, smaller audience exists: individuals who want to understand their own MoMo spending and income. They are not the focus of the first release.
+A second, smaller audience exists: individuals who want to understand their own MoMo spending and income, and small businesses that want their transactions easy to browse. They are not the focus of the first release.
 
 ## 4. Hypothesis
 
@@ -53,7 +54,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 **Job to be done:**
 > When the church receives MoMo money through the week, I want it sorted by purpose automatically, so I can report to leadership without reading every SMS.
 
-**Secondary user (later):** An individual tracking their own MoMo money.
+**Secondary user (later):** An individual tracking their own MoMo money, or a small business that wants clear transaction views and easier browsing of MoMo messages.
 
 **Non-users (agreed draft, validate with real treasurers):**
 - Organizations that already receive payments through a gateway or API and get clean data
@@ -132,12 +133,19 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] Naming a code is not a manual fix (Claude's decision, same logic as merges).
 - [x] **First run asks who the app is for:** Church or Organisation, with Personal shown as coming soon (founder asked for the choice). It changes wording and built-in known pairs only (Claude's decision).
 
+**Resolved in this round (founder answers)**
+- [x] **Report layout:** not fixed. Each church leader chooses the layout and what it contains. The app keeps one default report (totals per group, then the payment list) and lets staff choose the fields. Saved layouts can come later.
+- [x] **Baseline time today:** a guess for now, to be checked with a real treasurer: about 30 to 60 minutes for a service with about 40 payments, and 1 to 2 hours for 100 or more.
+- [x] **Telecel and AirtelTigo:** use the same template as MTN for now. Messages it cannot read go to *Not read*. They are not promised as supported.
+- [x] **Number references** come in the same Reference field and the same plain format as typed references.
+- [x] **Recovery code:** where it is kept is up to the church leader (Claude's reading of the founder's answer, correct if wrong).
+- [x] **Personal use, later:** its own spending view, no services. It may also serve **small businesses**: transaction views and an easier way to look through MoMo messages. Not in the MVP.
+
 **Still open**
-- [ ] Do leadership reports need a fixed layout? A sample report from a church would settle it.
-- [ ] Baseline: how long does a treasurer take today for one service? (needed to prove the 3 minute claim)
-- [ ] Telecel and AirtelTigo: no samples, so not supported yet. Add them when real messages are available.
-- [ ] Real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
-- [ ] Where will the treasurer keep the recovery code? (the app suggests writing it down and keeping it with a church leader)
-- [ ] No real SMS has a number reference yet. How do they look (spaces, full stops, 4 or more digits)? Could a giver type an amount like "50" as the reference?
-- [ ] What should Personal use do when it is built? Own spending view, no services? It is out of the MVP.
-- [ ] Should first run offer to enter the church's codes before the scan, so fewer payments wait in *Code 5* style groups?
+- [ ] Should first run offer to enter the church's codes before the scan, so fewer payments wait in *Code 5* style groups? (See architecture: a *Code 5* group is a temporary group for a number the app has no name for yet.)
+
+## 10. Risks (not questions)
+
+- **Messy references:** real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
+- **Other networks:** Telecel and AirtelTigo may word their messages differently, so many could land in *Not read* until real samples exist.
+- **Numbers that are not codes:** a giver might type an amount like "50" as the reference, or a number with 4 or more digits. Today the first is read as a code and the second as typed text. Real samples will show if this is a problem.

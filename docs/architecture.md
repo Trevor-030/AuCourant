@@ -1,6 +1,6 @@
 # Architecture: AuCourant
 
-> High-level decision doc, version 6 (number references added, fonts changed to Instrument Serif and Inter). Intent lives in `aucourant.prd.md`. Visual design lives in `figma-brief.md`. Task-level plans come later.
+> High-level decision doc, version 7 (use type choice added, number references, fonts changed to Instrument Serif and Inter). Intent lives in `aucourant.prd.md`. Visual design lives in `figma-brief.md`. Task-level plans come later.
 > Constraints from the founder: **Java**, **Android only**, **free resources only**, **everything on the phone**, **direct APK install** (not Play Store).
 
 ## Problem & goals
@@ -57,7 +57,7 @@ The original field is always stored untouched next to the cleaned value, so a wr
 
 1. **Match key:** the cleaned reference, lower-cased, trimmed, punctuation removed. Two references with the same key are **the same group automatically** ("offering", "Offering", "OFFERING.").
 2. **Display name:** the first wording seen, shown with a capital first letter. The treasurer can rename a group.
-3. **Built-in known pairs:** a small list joins automatically and visibly. Confirmed: **"Offertory" counts as "Offering"** and **"Tithes" counts as "Tithe"**. The group shows *Also counted: Offertory*, and the join can be undone from Merge history.
+3. **Built-in known pairs (church type only):** a small list joins automatically and visibly. Confirmed: **"Offertory" counts as "Offering"** and **"Tithes" counts as "Tithe"**. The group shows *Also counted: Offertory*, and the join can be undone from Merge history.
 4. **Everything else similar** (for example "Thanksgiving" and "Thanks giving") is **suggested** by the similarity score, and the treasurer confirms. Confirmed pairs are remembered.
 5. Spacing differences are not auto-joined. They go through suggestions.
 6. **Number codes use the code book.** The code book is a list on the phone: code to group name (1 is Offering, 2 is Tithe, 3 is Harvest). It starts **empty**, because every church uses its own numbers. A code means **the same thing in every service**, so there is no per-service version of the list.
@@ -96,7 +96,7 @@ The original field is always stored untouched next to the cleaned value, so a wr
 - **GroupChange:** payment, from group, to group, time, kind (auto, confirmed suggestion, code named, manual, undo). It powers Undo, the merge history and the manual-fix count.
 - **WeeklyService:** weekday (default Sunday), start time, end time.
 - **SpecialSession:** name, date, start time, end time. A payment inside a special session's window belongs to it, not to the weekly service, so no payment is counted twice.
-- **Settings:** theme (dark, light, match phone), lock type (4-digit PIN, 6-digit PIN, password) or none, fingerprint on or off, lock hash and salt, recovery code hash and salt, last export format and fields, whether to hide member names and numbers in exports.
+- **Settings:** use type (church or organisation), theme (dark, light, match phone), lock type (4-digit PIN, 6-digit PIN, password) or none, fingerprint on or off, lock hash and salt, recovery code hash and salt, last export format and fields, whether to hide member names and numbers in exports.
 
 A payment belongs to a service by its timestamp. Every payment already belongs to a group, so there is no separate "untagged" state.
 
@@ -121,6 +121,7 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 - **Merging is suggest-and-confirm.** Church money means a wrong silent merge breaks trust. Confirming a merge is a one-time decision that is remembered. Codes follow the same idea: the app never guesses what a number means.
 - **Always keep the raw SMS** next to the parsed fields, so any parser mistake can be traced and fixed later without losing data.
 - **Exports show group names, not codes.** The Reference field in an export is the original text, so "1" stays "1" there while the Group column says Offering.
+- **Use type (church or organisation) is a setting, not a separate app.** It is chosen on first run and can be changed in Settings. It only changes three things: the wording (strings: *service* for church, *period* for organisation), the built-in known pairs (church only), and the first-run copy. Parsing, grouping, codes, review, export and lock are identical. Switching later changes wording at once, and stops future built-in joins. Joins already made stay and remain in Merge history. **Personal** is shown as coming soon and is not selectable. (Claude's decision, founder asked for the choice.)
 - **Theme tokens are shared:** one set of colour and type tokens with a dark mode and a light mode, mirrored from the Figma variables (see `figma-brief.md`). The palette has no purple.
 
 ## Missing pieces
@@ -170,6 +171,7 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 
 ## Decided in this round
 
+- **Use type:** first run asks Church or Organisation. Personal shows as coming soon. It is a setting that changes wording and built-in known pairs only.
 - **Number references:** a per-church code book (code to group name). Numbers mean the same thing every week, but different churches use different numbers, so the book starts empty and is filled by naming codes as they first appear, or by adding them in Settings.
 - A code is 1 to 3 digits, leading zeros ignored. A code with words ("1 offering") uses the words.
 - An unnamed code goes into its own group (*Code 5*) until named. Naming a code is not a manual fix.
@@ -191,4 +193,5 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 - Personal-use features (budgets, fee warnings) are deferred and will need their own architecture pass.
 - A giver might type an amount like "50" as the reference. Is it a code, or noise? Needs real samples.
 - Should a number with 4 or more digits ever count as a code (for example 1001)? Today it is treated as typed text.
+- What should Personal do when it is built? It needs its own architecture pass (no services, own spending view).
 - Should first run offer to enter the codes before the scan, so nothing lands in *Code 5* groups? Today codes are named after they appear.

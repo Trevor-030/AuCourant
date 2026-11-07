@@ -70,7 +70,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 3. A reference is only what the giver typed. If the Reference field is blank, "-", or filled by the network with the sender's own details, the payment has **no reference**.
 4. It sorts payments into groups by reference (offering, harvest, thanksgiving, welfare, and so on). Payments with no reference go to the **No reference** group. Every payment ends up in a group.
 5. References that differ only by capital letters or punctuation (for example "offering" and "Offering") are one group automatically. A small built-in list of known pairs also joins automatically for the church type, starting with **"Offertory" counted as "Offering"**, and the group always shows what it includes. Any other similar references (for example "Thanksgiving" and "Thanks giving") are **suggested** as merges and the treasurer **confirms** each one.
-6. **Number references:** when a giver types a short number (1 to 3 digits) as the reference, the app looks it up in the church's **code list** (for example 1 is Offering, 2 is Tithe). The list starts empty because every church uses its own numbers. A number that is not on the list lands in its own group (*Code 5*) and is shown in the review queue, where the treasurer names it **once**. The name is remembered, and the number means the same thing in every service. The treasurer can also add or edit codes ahead of time in Settings. The app never guesses what a number means.
+6. **Number references:** when a giver types a short number (1 to 3 digits) as the reference, the app looks it up in the church's **code list** (for example 1 is Offering, 2 is Tithe). The list starts empty because every church uses its own numbers. A number that is not on the list lands in its own group (*Code 5*) and is shown in the review queue, where the treasurer names it **once**. The name is remembered, and the number means the same thing in every service. The treasurer can also add or edit codes ahead of time, at first run (an optional step) or in Settings. The app never guesses what a number means.
 7. The treasurer can move any payment to another group with one tap. Moves and merges happen at once and can be **undone** right away from a short message at the bottom of the screen, or later, for merges and named codes, from **Merge history** in Settings. The Undo message stays for about 8 seconds.
 8. The treasurer sees totals per group for a chosen service.
 9. **Services:** a weekly service on a chosen day (default Sunday), plus **special sessions** the treasurer can create at any time. Payments inside a special session count there and not in the weekly service, so nothing is counted twice.
@@ -79,7 +79,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 12. **Appearance:** dark theme by default, light theme available. The colours are midnight, emerald and gold. **No purple.**
 13. **First impression:** the welcome screen shows what the app does with a simple drawing (messages turning into tidy groups), says plainly that nothing leaves the phone, and has one clear button.
 
-14. **Who it is for:** on first run the user picks **Church** or **Organisation** (Personal is shown as coming soon). Church starts with the word *service* and the built-in known pairs. Organisation starts with the word *period* and no built-in pairs. Everything else works the same. It can be changed later in Settings. After this, the app asks for message access once, with a short plain explanation.
+14. **Who it is for:** on first run the user picks **Church** or **Organisation** (Personal is shown as coming soon). Church starts with the word *service* and the built-in known pairs. Organisation starts with the word *period* and no built-in pairs. Everything else works the same. It can be changed later in Settings. Church and Organisation then see an **optional step to enter their reference numbers** (for example 1 is Offering), which can be skipped. After this, the app asks for message access once, with a short plain explanation.
 
 **Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
 
@@ -141,8 +141,10 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] **Recovery code:** where it is kept is up to the church leader (Claude's reading of the founder's answer, correct if wrong).
 - [x] **Personal use, later:** its own spending view, no services. It may also serve **small businesses**: transaction views and an easier way to look through MoMo messages. Not in the MVP.
 
+- [x] **First run asks for the church's numbers** before the scan, as an optional skippable step, so fewer payments wait in *Code 5* style groups (founder said yes).
+
 **Still open**
-- [ ] Should first run offer to enter the church's codes before the scan, so fewer payments wait in *Code 5* style groups? (See architecture: a *Code 5* group is a temporary group for a number the app has no name for yet.)
+- [ ] None at the moment. See Risks below.
 
 ## 10. Risks (not questions)
 

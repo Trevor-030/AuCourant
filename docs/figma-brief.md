@@ -494,6 +494,7 @@ Handoff:
 - Undo: a message for about 8 seconds, plus Merge history in Settings for merges.
 - "offering" and "Offering" are one group. "Offertory" counts as "Offering", "Tithes" counts as "Tithe", shown as *Also counted: Offertory*.
 - No database encryption.
+- Report layout is not fixed. Leaders choose, so Export keeps one default plus the field choice.
 - **Purple removed.** Identity is now Midnight Emerald Gold. Decision surfaces are Deep Umber (dark) and Soft Champagne (light).
 - **Fonts:** Instrument Serif for the wordmark, onboarding titles and screen titles. Inter for everything else.
 - **Welcome screen:** drawn illustration instead of a photo. Welcome has one button, *Get started*. The trust row and permission helper moved to the new message access screen A1c.
@@ -504,4 +505,3 @@ Handoff:
 - Logo and app icon (wordmark **AuCourant** in Instrument Serif, "Au" in gold, on midnight and emerald).
 - How long a number can be before it stops counting as a code (see architecture).
 - What *Personal* should do when it is built.
-- Whether leadership reports need a fixed layout.

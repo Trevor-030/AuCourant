@@ -64,7 +64,7 @@ The original field is always stored untouched next to the cleaned value, so a wr
    - Code found and listed: the payment goes into that group at once. The group shows *Also counted: 1*.
    - Code found and **not listed**: the payment goes into a group called *Code 5* so every payment still has a group. The code appears in the review queue under **Codes**, and the treasurer names it once (pick an existing group or type a new name). The name is remembered, so it is never asked again.
    - Naming a code is a one-time decision like confirming a merge, so it is **not a manual fix**. (Claude's decision, same logic as merges. The founder can reverse it.)
-   - The treasurer can also add or edit codes ahead of time in Settings, under Reference codes. Editing a code's group moves all payments with that code, with Undo.
+   - The treasurer can also add or edit codes ahead of time: at first run (an optional, skippable step after the use type choice and before the scan) or later in Settings, under Reference codes. Codes entered at first run are stored the same way as any other code. Editing a code's group moves all payments with that code, with Undo.
    - A code never guesses its meaning. The app does not assume "1" means offering.
 
 ## Key decisions
@@ -171,6 +171,7 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 
 ## Decided in this round
 
+- **First run asks for reference numbers** before the scan (optional, skippable), so fewer payments wait in unnamed code groups.
 - **Reports:** layout is not fixed because each leader chooses. One default report plus a choice of fields. Saved layouts later.
 - **Other networks:** Telecel and AirtelTigo messages are tried with the MTN template for now. Anything it cannot read goes to *Not read*. They are not promised as supported.
 - **Use type:** first run asks Church or Organisation. Personal shows as coming soon. It is a setting that changes wording and built-in known pairs only.
@@ -195,4 +196,3 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 - A giver might type an amount like "50" as the reference. Is it a code, or noise? Needs real samples.
 - Should a number with 4 or more digits ever count as a code (for example 1001)? Today it is treated as typed text.
 - Personal use, later: its own spending view, no services. It may also serve small businesses with transaction views and easier browsing of messages. It needs its own architecture pass.
-- Should first run offer to enter the codes before the scan, so nothing lands in *Code 5* groups? Today codes are named after they appear.

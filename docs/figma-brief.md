@@ -258,7 +258,14 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 - Sticky bottom button, never disabled, label follows the choice: *Set up for church* or *Set up for organisation*.
 - Tapping *Personal* shows nothing selected and the helper *Personal use is coming. Choose Church or Organisation for now.*
 
-**A1c. Message access** (Form, centered)
+**A1c. Your reference numbers** (Form, full page, optional, shown for Church and Organisation)
+- Title (Instrument Serif): *Does your church use numbers?* (Organisation: *Does your group use numbers?*). Body: *Some givers type 1 or 2 instead of a word. Tell AuCourant what each number means. You can skip this and do it later.*
+- Rows of two fields each: *Number* (numeric keypad, placeholder `1`) and *Group name* (placeholder `Offering`). One empty row is shown. Text button *Add another number* adds a row. Helper under the list: *For example, 1 is Offering and 2 is Tithe.*
+- Sticky bottom button *Save numbers*, never disabled. Text link *Skip for now*.
+- Errors after first blur: *Use a number with 1 to 3 digits.* and *This number is already on the list.* Tapping *Save numbers* with nothing typed shows: *Add a number and a group name, or skip for now.*
+- Saved numbers go into the same code list as Settings, Reference codes. Skipping leaves it empty. Numbers found later are named in the review queue as before.
+
+**A1d. Message access** (Form, centered)
 - Title (Instrument Serif): *Let AuCourant read your MoMo messages*. Body: *AuCourant reads MoMo messages on this phone and groups the money you receive.*
 - **Trust row** above the button: lock icon (Phosphor, 16) and *Nothing leaves this phone. No account needed.* Plain text, no pill wrapper.
 - **Permission helper:** *Android will ask to read messages. Choose Allow so AuCourant can sort them.*
@@ -413,7 +420,7 @@ Each flow is one Figma section with a start frame and links wired.
 
 | Flow | Path |
 |---|---|
-| F1 First run | A1, A1b, A1c, A2 (denied branch), A3, A4, A5 (choose lock type), A5b, fingerprint step, B |
+| F1 First run | A1, A1b, A1c (skip branch), A1d, A2 (denied branch), A3, A4, A5 (choose lock type), A5b, fingerprint step, B |
 | F2 Review merges | B, Review now, G1 stack, Confirm merge, Undo message, next card, Everything is sorted |
 | F3 Fix one payment | E, tap row, F, Group row, Change group sheet, pick group, Undo message |
 | F4 Export | Export tab, H (defaults), Customize fields, Export report, success, Share file |
@@ -497,7 +504,8 @@ Handoff:
 - Report layout is not fixed. Leaders choose, so Export keeps one default plus the field choice.
 - **Purple removed.** Identity is now Midnight Emerald Gold. Decision surfaces are Deep Umber (dark) and Soft Champagne (light).
 - **Fonts:** Instrument Serif for the wordmark, onboarding titles and screen titles. Inter for everything else.
-- **Welcome screen:** drawn illustration instead of a photo. Welcome has one button, *Get started*. The trust row and permission helper moved to the new message access screen A1c.
+- **Welcome screen:** drawn illustration instead of a photo. Welcome has one button, *Get started*. The trust row and permission helper moved to the new message access screen A1d.
+- **First-run reference numbers (A1c):** an optional, skippable step asks the church to enter its numbers (1 is Offering, 2 is Tithe) before the scan, so fewer payments wait in *Code 5* style groups.
 - **Use type:** first run asks *Church* or *Organisation* (A1b). *Personal* is shown as coming soon. Changeable later in Settings under *Used for*.
 - **Number references:** a per-church code list (code to group name). Codes mean the same every week. Naming a code is not a manual fix.
 

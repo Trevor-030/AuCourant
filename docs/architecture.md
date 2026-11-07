@@ -171,6 +171,8 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 
 ## Decided in this round
 
+- **Reports:** layout is not fixed because each leader chooses. One default report plus a choice of fields. Saved layouts later.
+- **Other networks:** Telecel and AirtelTigo messages are tried with the MTN template for now. Anything it cannot read goes to *Not read*. They are not promised as supported.
 - **Use type:** first run asks Church or Organisation. Personal shows as coming soon. It is a setting that changes wording and built-in known pairs only.
 - **Number references:** a per-church code book (code to group name). Numbers mean the same thing every week, but different churches use different numbers, so the book starts empty and is filled by naming codes as they first appear, or by adding them in Settings.
 - A code is 1 to 3 digits, leading zeros ignored. A code with words ("1 offering") uses the words.
@@ -188,10 +190,9 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 
 ## Open questions
 
-- Do exports need a fixed layout for leadership, or fully free fields?
 - Which Android versions must be supported (affects permissions and the oldest phones)?
 - Personal-use features (budgets, fee warnings) are deferred and will need their own architecture pass.
 - A giver might type an amount like "50" as the reference. Is it a code, or noise? Needs real samples.
 - Should a number with 4 or more digits ever count as a code (for example 1001)? Today it is treated as typed text.
-- What should Personal do when it is built? It needs its own architecture pass (no services, own spending view).
+- Personal use, later: its own spending view, no services. It may also serve small businesses with transaction views and easier browsing of messages. It needs its own architecture pass.
 - Should first run offer to enter the codes before the scan, so nothing lands in *Code 5* groups? Today codes are named after they appear.

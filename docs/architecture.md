@@ -192,7 +192,6 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 ## Open questions
 
 - Which Android versions must be supported (affects permissions and the oldest phones)?
-- Personal-use features (budgets, fee warnings) are deferred and will need their own architecture pass.
+- Personal use (spending views, categories, small business): see `architecture-personal.md`. Budgets and fee warnings stay deferred.
 - A giver might type an amount like "50" as the reference. Is it a code, or noise? Needs real samples.
 - Should a number with 4 or more digits ever count as a code (for example 1001)? Today it is treated as typed text.
-- Personal use, later: its own spending view, no services. It may also serve small businesses with transaction views and easier browsing of messages. It needs its own architecture pass.

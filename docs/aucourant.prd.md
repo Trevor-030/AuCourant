@@ -1,7 +1,7 @@
 # AuCourant: Product Requirements Document
 
 > Name: AuCourant. Tagline: *Stay au courant with your MoMo.*
-> Status: Draft v8 (number references added, purple removed from the visual identity).
+> Status: Draft v9 (use type choice at first run, number references, purple removed from the visual identity).
 > Intent only. Engineering decisions live in `architecture.md`. Visual decisions live in `figma-brief.md`.
 
 ---
@@ -68,7 +68,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 2. It pulls out amount, sender, date, and reference for each received payment.
 3. A reference is only what the giver typed. If the Reference field is blank, "-", or filled by the network with the sender's own details, the payment has **no reference**.
 4. It sorts payments into groups by reference (offering, harvest, thanksgiving, welfare, and so on). Payments with no reference go to the **No reference** group. Every payment ends up in a group.
-5. References that differ only by capital letters or punctuation (for example "offering" and "Offering") are one group automatically. A small built-in list of known pairs also joins automatically, starting with **"Offertory" counted as "Offering"**, and the group always shows what it includes. Any other similar references (for example "Thanksgiving" and "Thanks giving") are **suggested** as merges and the treasurer **confirms** each one.
+5. References that differ only by capital letters or punctuation (for example "offering" and "Offering") are one group automatically. A small built-in list of known pairs also joins automatically for the church type, starting with **"Offertory" counted as "Offering"**, and the group always shows what it includes. Any other similar references (for example "Thanksgiving" and "Thanks giving") are **suggested** as merges and the treasurer **confirms** each one.
 6. **Number references:** when a giver types a short number (1 to 3 digits) as the reference, the app looks it up in the church's **code list** (for example 1 is Offering, 2 is Tithe). The list starts empty because every church uses its own numbers. A number that is not on the list lands in its own group (*Code 5*) and is shown in the review queue, where the treasurer names it **once**. The name is remembered, and the number means the same thing in every service. The treasurer can also add or edit codes ahead of time in Settings. The app never guesses what a number means.
 7. The treasurer can move any payment to another group with one tap. Moves and merges happen at once and can be **undone** right away from a short message at the bottom of the screen, or later, for merges and named codes, from **Merge history** in Settings. The Undo message stays for about 8 seconds.
 8. The treasurer sees totals per group for a chosen service.
@@ -76,7 +76,9 @@ A second, smaller audience exists: individuals who want to understand their own 
 10. The treasurer exports the result to **Excel** and **PDF**. Staff choose which fields appear. Hiding member names and phone numbers is an **option**, not the default. Export remembers the last format and fields, so repeat exports take a few taps.
 11. **App lock:** the user chooses the lock: a 4-digit PIN, a 6-digit PIN, or a password. Fingerprint can be turned on as a faster way in. Setup can be done later. At setup the app shows a **recovery code** once. If the PIN or password is forgotten, the code resets the lock **without erasing any data**.
 12. **Appearance:** dark theme by default, light theme available. The colours are midnight, emerald and gold. **No purple.**
-13. **First impression:** the welcome screen shows what the app does with a simple drawing (messages turning into tidy groups), says plainly that nothing leaves the phone, and asks for message access with one clear button.
+13. **First impression:** the welcome screen shows what the app does with a simple drawing (messages turning into tidy groups), says plainly that nothing leaves the phone, and has one clear button.
+
+14. **Who it is for:** on first run the user picks **Church** or **Organisation** (Personal is shown as coming soon). Church starts with the word *service* and the built-in known pairs. Organisation starts with the word *period* and no built-in pairs. Everything else works the same. It can be changed later in Settings. After this, the app asks for message access once, with a short plain explanation.
 
 **Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
 
@@ -128,6 +130,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] **Visual identity:** was Midnight Emerald Royal, now **Midnight Emerald Gold** (founder asked to remove purple). Dark theme default with a light theme.
 - [x] **Fonts:** Instrument Serif for the wordmark and titles, Inter for the rest (founder picked option A).
 - [x] Naming a code is not a manual fix (Claude's decision, same logic as merges).
+- [x] **First run asks who the app is for:** Church or Organisation, with Personal shown as coming soon (founder asked for the choice). It changes wording and built-in known pairs only (Claude's decision).
 
 **Still open**
 - [ ] Do leadership reports need a fixed layout? A sample report from a church would settle it.
@@ -136,4 +139,5 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [ ] Real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
 - [ ] Where will the treasurer keep the recovery code? (the app suggests writing it down and keeping it with a church leader)
 - [ ] No real SMS has a number reference yet. How do they look (spaces, full stops, 4 or more digits)? Could a giver type an amount like "50" as the reference?
+- [ ] What should Personal use do when it is built? Own spending view, no services? It is out of the MVP.
 - [ ] Should first run offer to enter the church's codes before the scan, so fewer payments wait in *Code 5* style groups?

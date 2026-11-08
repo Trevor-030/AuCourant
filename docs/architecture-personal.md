@@ -1,6 +1,6 @@
 # Architecture: AuCourant Personal use
 
-> High-level decision doc, version 1. Covers the **Personal** use type (also small businesses). The church and organisation design lives in `architecture.md` and still applies to everything shared. Intent lives in `aucourant.prd.md`. Visual design will go in `figma-brief.md` after the decisions below are agreed.
+> High-level decision doc, version 2 (open questions answered). Covers the **Personal** use type (also small businesses). The church and organisation design lives in `architecture.md` and still applies to everything shared. Intent lives in `aucourant.prd.md`. Visual design will go in `figma-brief.md` after the decisions below are agreed.
 > Same founder constraints: **Java**, **Android only**, **free resources only**, **everything on the phone**, **direct APK install**.
 
 ## Problem & goals
@@ -9,8 +9,8 @@ A person (or a small shop owner) gets a MoMo SMS for every payment they make or 
 
 AuCourant Personal reads the same SMS, sorts the money in and out, and shows it in a way that is easy to look through. Goals, in order:
 1. **Easy to look through:** find any payment fast (by person, amount, word, date).
-2. **Clear picture of a period:** money in, money out, fees, last known balance, spending by category.
-3. **Almost no manual work:** most payments are put in a category automatically, and the user only decides the odd ones.
+2. **Clear picture of a period:** totals only: money in, money out, fees paid, and spending by category. No balance.
+3. **Almost no manual work:** most payments are put in a category automatically, and the user only decides the odd ones. **Success target: 0 payments left Uncategorised** when the user reviews a period.
 4. **Same promises as before:** free, private, nothing leaves the phone.
 
 Small business reading: money in is sales, the same people who pay again and again are customers, and "Today" is the end-of-day total. No separate mode is needed for this (see decisions).
@@ -58,9 +58,9 @@ Learning is **suggest and confirm**, like merges. When the user puts a payment i
 
 Navigation is four tabs: **Home, Transactions, Categories, Export.** Settings is a gear on Home, same as church.
 
-- **Home:** period selector, then *Money in*, *Money out*, *Fees paid*, and the **last known balance** (from the newest SMS). Then spending by category as simple bars (drawn by the app, no chart library). Then a *Needs attention* card: payments to categorise and messages not read.
+- **Home:** period selector, then *Money in*, *Money out* and *Fees paid*. Totals only, no balance. Then spending by category as simple bars (drawn by the app, no chart library). Then a *Needs attention* card: payments to categorise and messages not read.
 - **Transactions:** the searchable list. Date headers with day totals, filters (In, Out, a category, a person), search box, a tap opens the detail with the original message. This is the "easier to look through" screen.
-- **Transaction detail:** amount, person, category (tappable), fee, balance after, reference, original message. A link *See all with this person*.
+- **Transaction detail:** amount, person, category (tappable), fee, reference, and a collapsed *More details* with the balance after that payment and the original message. A link *See all with this person*.
 - **Person view:** reached from a transaction. Total in, total out, count, nickname, and the list. For a shop this is the customer view.
 - **Categories:** each category with its spending in the period, a tap shows its payments. Manage categories and rules here.
 - **Export:** same screen as church, with the period instead of the service. CSV and PDF, choose fields, hide names option.
@@ -85,8 +85,8 @@ Navigation is four tabs: **Home, Transactions, Categories, Export.** Settings is
 **Boundaries & contracts**
 
 - **No new permissions.** The contacts permission is **not** requested. Names come from the SMS and the user can type a nickname. This keeps "SMS only, no internet" as the trust message.
-- **Privacy:** personal money is more private than a church's. Same rules: no network, no cloud, backups off, lock optional but suggested at setup, recovery code as before. No database encryption in version 1, same as the church design. Revisit for Personal, because a phone is more likely to be lost than a shared church phone.
-- **Balance is only what the SMS says.** The app shows the latest balance from the newest message and never calculates a balance itself. If messages are missing the number can be old, so the date of that balance is shown next to it.
+- **Privacy:** personal money is more private than a church's. Same rules: no network, no cloud, backups off, lock optional but suggested at setup, recovery code as before. Same lock as church: the user chooses a 4-digit PIN, 6-digit PIN or password, with optional fingerprint and a recovery code. Users set the lock up themselves, and setup can be done later. No database encryption in version 1 (founder decision, same as church).
+- **No balance on Home.** Home shows totals only. The balance written in each SMS is still stored and appears only under *More details* on a payment, as the balance after that payment. The app never calculates a balance itself.
 - **No budgets, no fee warnings, no line charts in version 1.** The data supports them (fees and category totals are stored), so they can be added without changing the database.
 - **Other networks:** many personal users are on Telecel or AirtelTigo. They use the MTN template for now (founder decision), so expect more messages in *Not read* for them until real samples exist.
 - **Parser is the one-way door again.** Directions and categories all depend on reading each type correctly. Wrong type means wrong direction and wrong totals, so the raw SMS stays next to every parsed field.
@@ -129,6 +129,10 @@ Decision rule: if most fail, add one parser class per network before promising P
 
 ## Decided in this round
 
+- **First-run card says "Personal or business"** (Claude's pick, founder asked for a suggestion). One card, one use type for now. A separate Business card with its own words (sales, customers) can come later if shop owners need it.
+- **Success target: 0 payments left Uncategorised** when the user reviews a period (founder). Note: this means 0 left over after the user's own review, not 0 without any user action. New people will always need one decision. The share categorised automatically is measured in the first month as a baseline, with no target yet.
+- **Home shows totals only** (money in, money out, fees paid). No balance on Home.
+- **Same lock as church:** PIN or password chosen by the user, optional fingerprint, recovery code, no database encryption in version 1.
 - **Same app, same data, new views.** Personal is a use type, not a separate app.
 - **Personal also serves small businesses** with no separate mode: the Today period is the daily total, money in is sales, repeat payers are customers.
 - **Four tabs:** Home, Transactions, Categories, Export. Periods replace services. No weekly service or special sessions in Personal.
@@ -140,7 +144,4 @@ Decision rule: if most fail, add one parser class per network before promising P
 
 ## Open questions
 
-- **One use type or two?** Should the card on first run say *Personal*, or *Personal or business*? Or should Business be its own card later, with its own wording (sales, customers)?
-- What is the success target for Personal (for example: under 10% of money out uncategorised after one month)?
-- Should the Personal home show the balance at all, given that it can be old if messages are missing?
-- Is a PIN enough for Personal, or should database encryption move up for this use type?
+- Personal needs its own PRD hypothesis and non-goals (see Missing pieces) before the Figma work.

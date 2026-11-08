@@ -79,7 +79,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 12. **Appearance:** dark theme by default, light theme available. The colours are midnight, emerald and gold. **No purple.**
 13. **First impression:** the welcome screen shows what the app does with a simple drawing (messages turning into tidy groups), says plainly that nothing leaves the phone, and has one clear button.
 
-14. **Who it is for:** on first run the user picks **Church** or **Organisation** (Personal is shown as coming soon). Church starts with the word *service* and the built-in known pairs. Organisation starts with the word *period* and no built-in pairs. Everything else works the same. It can be changed later in Settings. Church and Organisation then see an **optional step to enter their reference numbers** (for example 1 is Offering), which can be skipped. After this, the app asks for message access once, with a short plain explanation.
+14. **Who it is for:** on first run the user picks **Church** or **Organisation** (*Personal or business* is shown as coming soon). Church starts with the word *service* and the built-in known pairs. Organisation starts with the word *period* and no built-in pairs. Everything else works the same. It can be changed later in Settings. Church and Organisation then see an **optional step to enter their reference numbers** (for example 1 is Offering), which can be skipped. After this, the app asks for message access once, with a short plain explanation.
 
 **Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
 
@@ -139,6 +139,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] **Telecel and AirtelTigo:** use the same template as MTN for now. Messages it cannot read go to *Not read*. They are not promised as supported.
 - [x] **Number references** come in the same Reference field and the same plain format as typed references.
 - [x] **Recovery code:** where it is kept is up to the church leader (Claude's reading of the founder's answer, correct if wrong).
+- [x] **Personal or business, decisions so far:** one first-run card called *Personal or business*. Success target is 0 payments left Uncategorised after the user reviews a period. Home shows totals only, no balance. Same lock as church. Details in `architecture-personal.md`.
 - [x] **Personal use, later:** its own spending view, no services. It may also serve **small businesses**: transaction views and an easier way to look through MoMo messages. Not in the MVP.
 
 - [x] **First run asks for the church's numbers** before the scan, as an optional skippable step, so fewer payments wait in *Code 5* style groups (founder said yes).

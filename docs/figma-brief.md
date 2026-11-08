@@ -253,10 +253,10 @@ Each screen names its page pattern. Design every screen in **Dark first, then Li
 - Single-select list on a bordered `bg-1` surface, three rows, each 48 or taller, radius 8, with a Phosphor 24 icon, a title and one grey line:
   - **Church** (church icon): *Sort offerings, tithes and special services.* Selected by default.
   - **Organisation** (buildings icon): *Sort payments by reference for your team or group.*
-  - **Personal** (user icon): *Understand your own MoMo money.* Grey text *Coming soon*. Not selectable.
+  - **Personal or business** (user icon): *Understand your own MoMo money, or your shop's sales.* Grey text *Coming soon*. Not selectable.
 - Selected row: `bg-2` tint, Jade 1px border, Jade radio dot. No card inside a card.
 - Sticky bottom button, never disabled, label follows the choice: *Set up for church* or *Set up for organisation*.
-- Tapping *Personal* shows nothing selected and the helper *Personal use is coming. Choose Church or Organisation for now.*
+- Tapping *Personal or business* shows nothing selected and the helper *Personal and business use is coming. Choose Church or Organisation for now.*
 
 **A1c. Your reference numbers** (Form, full page, optional, shown for Church and Organisation)
 - Title (Instrument Serif): *Does your church use numbers?* (Organisation: *Does your group use numbers?*). Body: *Some givers type 1 or 2 instead of a word. Tell AuCourant what each number means. You can skip this and do it later.*

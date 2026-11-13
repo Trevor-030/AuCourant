@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "AuCourant",
+    "slug": "aucourant",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#080d0c",
+    "platforms": ["android"],
+    "android": {
+      "package": "com.aucourant.app",
+      "allowBackup": false,
+      "permissions": [
+        "android.permission.READ_SMS",
+        "android.permission.RECEIVE_SMS",
+        "android.permission.USE_BIOMETRIC"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#080d0c",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "softwareKeyboardLayoutMode": "resize",
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#080d0c"
+        }
+      ],
+      "expo-font",
+      "./plugins/with-aucourant-native"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # Architecture: AuCourant Personal use
 
-> High-level decision doc, version 2 (open questions answered). Covers the **Personal** use type (also small businesses). The church and organisation design lives in `architecture.md` and still applies to everything shared. Intent lives in `aucourant.prd.md`. Visual design will go in `figma-brief.md` after the decisions below are agreed.
+> High-level decision doc, version 3 (built on sample data, November 2026). Covers the **Personal** use type (also small businesses). The church and organisation design lives in `architecture.md` and still applies to everything shared. Intent lives in `aucourant.prd.md` (section 11). Figma is no longer used: this doc and the PRD describe the Personal screens.
 > Same founder constraints: **Java**, **Android only**, **free resources only**, **everything on the phone**, **direct APK install**.
 
 ## Problem & goals
@@ -94,7 +94,7 @@ Navigation is four tabs: **Home, Transactions, Categories, Export.** Settings is
 ## Missing pieces
 
 - **Real samples of every MTN message type** (sent, merchant and bill payment, cash out, airtime and data, reversal, failed). Only cash in, payment sent and payment received exist today. The founder's own inbox is the quickest source, with names and numbers hidden.
-- A **PRD hypothesis for Personal.** The current PRD is built around the church treasurer. Personal needs its own problem, success target and non-goals before the Figma work.
+- ~~A PRD hypothesis for Personal~~: done, see `aucourant.prd.md` section 11.
 - Telecel and AirtelTigo samples.
 
 ## Spikes & experiments
@@ -144,4 +144,31 @@ Decision rule: if most fail, add one parser class per network before promising P
 
 ## Open questions
 
-- Personal needs its own PRD hypothesis and non-goals (see Missing pieces) before the Figma work.
+- None. The PRD hypothesis is written (section 11).
+
+## Built (November 2026)
+
+The Personal views run on sample data, at the same stage as the church screens. Where things live:
+
+| Piece | Where |
+|---|---|
+| MTN parser registry, one class per type, reference cleaner | `native/android/java/com/aucourant/parser/` (plain Java, no Android imports) |
+| Parser checks (plain JDK, no JUnit) | `native/android/test/.../ParserCheck.java`, run with `npm run test:parser` |
+| Bridge | `SmsModule.parseMessages(bodies)` and `SmsNative.parse()` in `src/native/index.ts` |
+| Types, sample payments, default categories | `src/lib/personal-data.ts` |
+| Categoriser (person rule, word rule, built-in type rule) | `src/lib/categorise.ts` |
+| Periods | `src/lib/periods.ts` |
+| State and actions (suggest and confirm, undo, nicknames) | `src/lib/personal.ts`, spread into the store |
+| Screens | `src/screens/personal/` (home, transactions, person, categories, export) |
+
+**Provisional parser templates.** Only *Payment received* and *Cash In* come from real samples. *Payment made* (sent), merchant payment, bill payment, cash out, airtime and data, and reversal are **best-guess wording**, marked `PROVISIONAL` in each class. The registry tries the specific wordings first (reversal, cash in and out, airtime, bills, merchants), then the plain payment ones. Every field (fee, tax, balance, reference, transaction ID) is read on its own, so a change in field order does not break a whole message. Unknown messages come back as `UNREAD` with the raw text. A developer-only *Parse my inbox* button (Settings, Developer) counts message types on a real phone without storing anything, which is the quickest way to run spike 1 and collect the real wording.
+
+**Small choices made while building (two-way doors):**
+- A reversal counts as money in (the money comes back).
+- The user's own airtime and data top-ups are grouped as one "person", *Airtime and data*.
+- Removing a rule does not move payments back. Only future payments are affected.
+- Hiding a category takes it out of lists and pickers. Its payments keep the category.
+- Category totals on the Categories tab are money out; a category with only money in shows its money in.
+- Personal sample data starts with a few rules "confirmed earlier" (Ama Owusu is Family; *fresh mart* is Food; *fuel* is Transport; *goods* is Business) so the screens look like a real second month.
+
+**Still to build:** Room storage and the live receiver (shared with church), then running the categoriser over stored payments the first time Personal opens.

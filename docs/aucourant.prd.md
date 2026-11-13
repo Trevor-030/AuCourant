@@ -79,9 +79,9 @@ A second, smaller audience exists: individuals who want to understand their own 
 12. **Appearance:** dark theme by default, light theme available. The colours are midnight, emerald and gold. **No purple.**
 13. **First impression:** the welcome screen shows what the app does with a simple drawing (messages turning into tidy groups), says plainly that nothing leaves the phone, and has one clear button.
 
-14. **Who it is for:** on first run the user picks **Church** or **Organisation** (*Personal or business* is shown as coming soon). Church starts with the word *service* and the built-in known pairs. Organisation starts with the word *period* and no built-in pairs. Everything else works the same. It can be changed later in Settings. Church and Organisation then see an **optional step to enter their reference numbers** (for example 1 is Offering), which can be skipped. After this, the app asks for message access once, with a short plain explanation.
+14. **Who it is for:** on first run the user picks **Church**, **Organisation** or **Personal or business** (see section 11). Church starts with the word *service* and the built-in known pairs. Organisation starts with the word *period* and no built-in pairs. Everything else works the same. It can be changed later in Settings. Church and Organisation then see an **optional step to enter their reference numbers** (for example 1 is Offering), which can be skipped. After this, the app asks for message access once, with a short plain explanation.
 
-**Not in the MVP:** personal budgeting, spending categories, fee warnings, charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
+**Not in the MVP:** budgets, fee warnings, line charts, multiple users or accounts, cloud sync, database encryption, and networks other than **MTN** (the only network with real samples).
 
 **Door check:**
 - Reading and parsing SMS across networks is a **one-way door** (everything depends on it). Prove it first with real samples.
@@ -131,7 +131,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] **Visual identity:** was Midnight Emerald Royal, now **Midnight Emerald Gold** (founder asked to remove purple). Dark theme default with a light theme.
 - [x] **Fonts:** Instrument Serif for the wordmark and titles, Inter for the rest (founder picked option A).
 - [x] Naming a code is not a manual fix (Claude's decision, same logic as merges).
-- [x] **First run asks who the app is for:** Church or Organisation, with Personal shown as coming soon (founder asked for the choice). It changes wording and built-in known pairs only (Claude's decision).
+- [x] **First run asks who the app is for:** Church, Organisation, or Personal or business (Personal was first shown as coming soon; it is now selectable, see section 11) (founder asked for the choice). It changes wording and built-in known pairs only (Claude's decision).
 
 **Resolved in this round (founder answers)**
 - [x] **Report layout:** not fixed. Each church leader chooses the layout and what it contains. The app keeps one default report (totals per group, then the payment list) and lets staff choose the fields. Saved layouts can come later.
@@ -140,7 +140,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 - [x] **Number references** come in the same Reference field and the same plain format as typed references.
 - [x] **Recovery code:** where it is kept is up to the church leader (Claude's reading of the founder's answer, correct if wrong).
 - [x] **Personal or business, decisions so far:** one first-run card called *Personal or business*. Success target is 0 payments left Uncategorised after the user reviews a period. Home shows totals only, no balance. Same lock as church. Details in `architecture-personal.md`.
-- [x] **Personal use, later:** its own spending view, no services. It may also serve **small businesses**: transaction views and an easier way to look through MoMo messages. Not in the MVP.
+- [x] **Personal use:** its own spending view, no services. It also serves **small businesses**: transaction views and an easier way to look through MoMo messages. Now built on sample data (section 11).
 
 - [x] **First run asks for the church's numbers** before the scan, as an optional skippable step, so fewer payments wait in *Code 5* style groups (founder said yes).
 
@@ -152,3 +152,29 @@ A second, smaller audience exists: individuals who want to understand their own 
 - **Messy references:** real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
 - **Other networks:** Telecel and AirtelTigo may word their messages differently, so many could land in *Not read* until real samples exist.
 - **Numbers that are not codes:** a giver might type an amount like "50" as the reference, or a number with 4 or more digits. Today the first is read as a code and the second as typed text. Real samples will show if this is a problem.
+
+## 11. Personal or business
+
+> Added November 2026, when the Personal use type was built. Engineering detail: `architecture-personal.md`. Figma is no longer used, so this section and the architecture doc are the source for the Personal screens.
+
+**Problem:** a person, or a small shop owner, gets a MoMo SMS for every payment they make or receive. The messages pile up, are hard to search, and do not answer simple questions: *Where did my money go this month? Who paid me today? How much did I pay in fees?*
+
+**Users:** an individual tracking their own MoMo money, and a small shop owner who wants the day's sales and repeat customers at a glance. There is no separate business mode: money in is sales, *Today* is the end-of-day total, and a person who pays often is a customer.
+
+**Hypothesis:** if AuCourant sorts every MoMo message into money in or money out, puts most payments in a category by simple rules, and lets the user search by person, amount or word, then a user can see where their money went in a period, and **finish a period with 0 payments left Uncategorised** after a short review. New people will always need one decision. The share categorised automatically is measured in the first month as a baseline, with no target yet.
+
+**What the user gets:**
+1. Four tabs: **Home, Transactions, Categories, Export.** Settings is the gear on Home.
+2. **Periods** instead of services: Today, This week, This month, Last month, or chosen dates. The last choice is remembered.
+3. **Home:** *Money in*, *Money out* and *Fees paid* for the period. Totals only, **no balance**. Spending by category as simple bars. A *Needs attention* card for payments to categorise and messages not read.
+4. **Transactions:** search across name, nickname, number, amount, note and the original message; filters for money in, money out, a category, a person, and Uncategorised. A payment shows its person, category, fee and note, and under *More details* the balance after that payment (as written in the SMS) and the original message.
+5. **Person view:** total in, total out, number of payments, an optional nickname, and every payment with that person or shop.
+6. **Categories:** the default list (Food, Transport, Airtime and data, Bills, Family and friends, Savings, Business, Cash withdrawals, Fees, Other), each with its total for the period. The user can add, rename, hide and reorder categories, and see and remove rules.
+7. **Suggest and confirm:** when the user puts a payment in a category, the app offers *Also move 6 other payments with Kofi Boateng?* A rule is made only if they tap *Move them*. Every change can be undone.
+8. **Export:** CSV and PDF for the period, with chosen fields and an option to hide names and numbers.
+
+**Non-goals for Personal (version 1):** budgets, fee warnings, line charts, balances worked out by the app, the contacts permission (names come from the SMS or a typed nickname), bank or account connections, and machine learning for categories.
+
+**Status:** built on sample data, like the church screens. The Java parser now reads every MTN message type Personal needs. Received and Cash In come from real samples; Sent, Shop payment, Bill, Cash out, Airtime and data, and Reversal are **provisional** best guesses until real samples arrive. Anything the parser cannot read goes to *Not read* and is never dropped.
+
+**Risks:** provisional parser wording may not match real messages (more *Not read* until fixed); Telecel and AirtelTigo use the MTN templates for now; the categoriser's automatic share on a real inbox is unknown until spike 2.

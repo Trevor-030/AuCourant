@@ -5,7 +5,14 @@
  * build made before `expo prebuild`), each call fails with NativeMissingError so the
  * screen can show its normal error state instead of crashing.
  */
-import { NativeModules, PermissionsAndroid, Platform } from 'react-native'
+import { AppState, NativeModules, PermissionsAndroid, Platform } from 'react-native'
+import Constants, { ExecutionEnvironment } from 'expo-constants'
+
+/**
+ * True inside Expo Go. Expo Go has none of AuCourant's Java modules and does not declare the
+ * SMS permissions, so message access cannot work there: use a development build instead.
+ */
+export const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient
 
 export class NativeMissingError extends Error {
   constructor(name: string) {
@@ -94,21 +101,50 @@ type SmsNative = {
 /** Provisional sender IDs for MTN MoMo. Confirm against real phones (architecture spike 2). */
 export const MOMO_SENDERS = ['MobileMoney', 'MTN MoMo', 'MTNMoMo']
 
+export type SmsPermission = 'granted' | 'denied' | 'never_ask_again' | 'unavailable'
+
+/** How long after the app comes back to the front we stop waiting for the prompt's own answer. */
+const PROMPT_SETTLE_MS = 1500
+
 export const SmsNative = {
   hasPermission: () => mod<SmsNative>('AuCourantSms').hasPermission(),
-  /** Shows the Android prompt. Resolves 'granted', 'denied' or 'never_ask_again'. */
-  async requestPermission() {
-    if (Platform.OS !== 'android') return 'denied' as const
-    const r = await PermissionsAndroid.requestMultiple([
+  /** False in Expo Go, on non-Android platforms, or in a build made before the Java modules were added. */
+  canReadMessages: () => Platform.OS === 'android' && !inExpoGo && hasNative('AuCourantSms'),
+  /**
+   * Shows the Android prompt. Resolves 'granted', 'denied', 'never_ask_again', or 'unavailable'
+   * when this build cannot read messages at all (see canReadMessages).
+   *
+   * Some hosts never deliver the prompt's result to React Native, which used to leave the button
+   * loading forever. So when the app returns to the front after the prompt closes, the permission is
+   * checked directly and that answer wins if the prompt's own result has not arrived.
+   */
+  async requestPermission(): Promise<SmsPermission> {
+    if (!SmsNative.canReadMessages()) return 'unavailable'
+    const asked = PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.READ_SMS,
       PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-    ])
-    const read = r[PermissionsAndroid.PERMISSIONS.READ_SMS]
-    return read === PermissionsAndroid.RESULTS.GRANTED
-      ? ('granted' as const)
-      : read === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN
-        ? ('never_ask_again' as const)
-        : ('denied' as const)
+    ]).then((r): SmsPermission => {
+      const read = r[PermissionsAndroid.PERMISSIONS.READ_SMS]
+      return read === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : read === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ? 'never_ask_again' : 'denied'
+    })
+    let sub: { remove(): void } | undefined
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const settled = new Promise<SmsPermission>((resolve) => {
+      sub = AppState.addEventListener('change', (st) => {
+        if (st !== 'active') return
+        clearTimeout(timer)
+        timer = setTimeout(async () => {
+          const ok = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS).catch(() => false)
+          resolve(ok ? 'granted' : 'denied')
+        }, PROMPT_SETTLE_MS)
+      })
+    })
+    try {
+      return await Promise.race([asked, settled])
+    } finally {
+      sub?.remove()
+      clearTimeout(timer)
+    }
   },
   readInbox: (sinceMillis = 0, senders = MOMO_SENDERS) => mod<SmsNative>('AuCourantSms').readInbox(senders, sinceMillis),
   /** Parses bodies with the Java MTN templates. Nothing is stored. */

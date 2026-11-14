@@ -6,7 +6,7 @@ import { FIRST_RECOVERY_CODE } from '../lib/data'
 import { money, shortDate } from '../lib/format'
 import { SmsNative } from '../native'
 import { BRAND, DURATION, RADIUS, makeStyles, useTheme } from '../theme'
-import { AppBar, Button, Divided, ErrorBox, LinkText, Row, Surface, T, Wordmark } from '../ui/kit'
+import { AppBar, Button, Divided, ErrorBox, LinkText, LogoMark, Row, Surface, T, Wordmark } from '../ui/kit'
 import { ChatCircleDotsIcon, ChatSlashIcon, CheckCircleIcon, DeviceMobileIcon, LockSimpleIcon, ShieldCheckIcon, type Icon } from '../ui/icons'
 import { BrandGradient, EmeraldGlow, Fill } from '../ui/layout'
 import { Sheet } from '../ui/overlays'
@@ -149,7 +149,10 @@ function Welcome({ onNext }: { onNext: () => void }) {
     <Fill>
       <BrandGradient style={[s.hero, { paddingTop: 24 + insets.top }]}>
         <EmeraldGlow size={360} style={{ top: -112, right: -96 }} />
-        <Wordmark hero size={32} />
+        <LogoMark onBrand size={88} />
+        <View style={{ marginTop: -8, marginBottom: 4 }}>
+          <Wordmark hero size={32} />
+        </View>
         <T v="sec" color={BRAND.onBrand80}>
           Stay au courant with your MoMo.
         </T>

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp } from '../lib/store'
 import { FIRST_RECOVERY_CODE } from '../lib/data'
 import { money, shortDate } from '../lib/format'
-import { SmsNative } from '../native'
+import { SmsNative, inExpoGo, type SmsPermission } from '../native'
 import { BRAND, DURATION, RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, Button, Divided, ErrorBox, LinkText, LogoMark, Row, Surface, T, Wordmark } from '../ui/kit'
 import { ChatCircleDotsIcon, ChatSlashIcon, CheckCircleIcon, DeviceMobileIcon, LockSimpleIcon, ShieldCheckIcon, type Icon } from '../ui/icons'
@@ -183,12 +183,12 @@ function Welcome({ onNext }: { onNext: () => void }) {
   )
 }
 
-/** Asks Android for SMS access. Resolves true when granted. */
-async function askSms() {
+/** Asks Android for SMS access. */
+async function askSms(): Promise<SmsPermission> {
   try {
-    return (await SmsNative.requestPermission()) === 'granted'
+    return await SmsNative.requestPermission()
   } catch {
-    return false
+    return 'denied'
   }
 }
 
@@ -198,11 +198,14 @@ function Permission({ onBack, onAllow, onDeny }: { onBack: () => void; onAllow: 
   const { c } = useTheme()
   const [privacy, setPrivacy] = useState(false)
   const [asking, setAsking] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
+  const { useType } = useApp()
   const allow = async () => {
     setAsking(true)
-    const ok = await askSms()
+    const r = await askSms()
     setAsking(false)
-    if (ok) onAllow()
+    if (r === 'granted') onAllow()
+    else if (r === 'unavailable') setUnavailable(true)
     else onDeny()
   }
   return (
@@ -216,19 +219,36 @@ function Permission({ onBack, onAllow, onDeny }: { onBack: () => void; onAllow: 
             Let AuCourant read MoMo messages
           </T>
           <T tone="fg2" style={{ marginTop: 8 }}>
-            It looks for MoMo payments you received and sorts them by reference. Other messages are ignored.
+            {useType === 'personal'
+              ? 'It looks for MoMo payments you send, spend and receive, and sorts them into money in, money out and categories. Other messages are ignored.'
+              : 'It looks for MoMo payments you received and sorts them by reference. Other messages are ignored.'}
           </T>
           <View style={[s.promise, { marginTop: 24 }]}>
             <LockSimpleIcon size={16} color={c.fg2} />
             <T v="sec">Nothing leaves this phone. No account needed.</T>
           </View>
         </Fill>
-        <T v="meta" tone="fg3">
-          Android will ask to read messages. Choose Allow so AuCourant can sort them.
-        </T>
-        <Button full loading={asking} style={{ marginTop: 16 }} onPress={allow}>
-          Allow message access
-        </Button>
+        {unavailable ? (
+          <>
+            <ErrorBox>
+              {inExpoGo
+                ? 'Expo Go cannot read SMS. Install the AuCourant development build with "npx expo run:android" to use your real messages.'
+                : 'This build of AuCourant cannot read SMS. Rebuild it with "npx expo run:android" to use your real messages.'}
+            </ErrorBox>
+            <Button full style={{ marginTop: 16 }} onPress={onAllow}>
+              Continue with sample data
+            </Button>
+          </>
+        ) : (
+          <>
+            <T v="meta" tone="fg3">
+              Android will ask to read messages. Choose Allow so AuCourant can sort them.
+            </T>
+            <Button full loading={asking} style={{ marginTop: 16 }} onPress={allow}>
+              Allow message access
+            </Button>
+          </>
+        )}
         <Button full variant="text" style={{ marginTop: 4 }} onPress={() => setPrivacy(true)}>
           How your messages stay private
         </Button>
@@ -264,7 +284,7 @@ function Denied({ onAllow }: { onAllow: () => void }) {
         </T>
       </Fill>
       <View style={{ gap: 8 }}>
-        <Button variant="secondary" full onPress={async () => (await askSms()) && onAllow()}>
+        <Button variant="secondary" full onPress={async () => (await askSms()) === 'granted' && onAllow()}>
           Try again
         </Button>
         <Button full onPress={() => Linking.openSettings()}>

@@ -4,7 +4,7 @@ import { useApp } from '../../lib/store'
 import { totalsOf } from '../../lib/personal'
 import { money, plural } from '../../lib/format'
 import { BRAND, RADIUS, makeStyles, useTheme } from '../../theme'
-import { AppBar, Button, EmptyState, ErrorBox, IconButton, Row, SectionTitle, Skel, SkeletonRows, Surface, T, Wordmark } from '../../ui/kit'
+import { AppBar, Button, EmptyState, ErrorBox, IconButton, Row, SectionTitle, Skel, SkeletonRows, Surface, T, Lockup } from '../../ui/kit'
 import { CaretDownIcon, CaretRightIcon, ChatSlashIcon, CheckCircleIcon, GearSixIcon, ReceiptIcon, TagIcon, type Icon } from '../../ui/icons'
 import { Body, BrandGradient } from '../../ui/layout'
 import { useCoachTarget } from '../../ui/overlays'
@@ -42,7 +42,7 @@ export function PersonalHome() {
 
   return (
     <>
-      <AppBar title={<Wordmark />} actions={<IconButton label="Settings" icon={GearSixIcon} onPress={() => push({ name: 'settings' })} tipAlign="end" />} />
+      <AppBar title={<Lockup />} actions={<IconButton label="Settings" icon={GearSixIcon} onPress={() => push({ name: 'settings' })} tipAlign="end" />} />
       <Body>
         {demo === 'loading' ? (
           <HomeSkeleton />

@@ -165,17 +165,8 @@ export function AppBar({ title, onBack, actions }: { title?: ReactNode; onBack?:
   )
 }
 
-export function Wordmark({ size = 24, hero }: { size?: number; hero?: boolean }) {
-  const { c } = useTheme()
-  return (
-    <T w="display" style={{ fontSize: size, lineHeight: size * 1.2 }} color={hero ? BRAND.onBrand : c.fg} accessibilityLabel="AuCourant">
-      <T w="display" style={{ fontSize: size, lineHeight: size * 1.2 }} color={hero ? BRAND.gold : c.gold}>
-        Au
-      </T>
-      Courant
-    </T>
-  )
-}
+/** The logo lives in ./logo (drawn from the brand masters). Re-exported so existing imports keep working. */
+export { AppIcon, Lockup, LogoMark, Wordmark } from './logo'
 
 /** Bordered card. With `divided`, children are separated by hairlines (Tailwind divide-y). */
 export function Surface({ children, style, divided }: { children: ReactNode; style?: StyleProp<ViewStyle>; divided?: boolean }) {

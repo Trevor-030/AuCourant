@@ -19,6 +19,8 @@ src/native/                  typed bridge to the Java modules
 native/android/java/...      Java sources: ExportModule, LockModule, SmsModule (nativebridge/), MTN parser registry (parser/)
 native/android/test/...      plain-JDK parser checks (no Android, no JUnit)
 plugins/with-aucourant-native.js   copies the Java into android/ and registers it on every prebuild
+assets/                      app icon, adaptive icon layers, splash, favicon (built from assets/brand/svg/app)
+assets/brand/                logo kit: SVG masters and PNG exports. Rules in docs/brand-guidelines.md
 ```
 
 Navigation is a small state machine in `src/lib/store.tsx` (phase: onboarding, locked, app; plus a route stack). It mirrors the Figma Make prototype. Expo Router is not used.
@@ -30,6 +32,7 @@ Navigation is a small state machine in `src/lib/store.tsx` (phase: onboarding, l
 - Import icons from `src/ui/icons.ts` (deep imports keep the bundle small). Add new ones there.
 - Fonts are imported per weight (`@expo-google-fonts/inter/500Medium`), never from the package root.
 - Use `T` for text and `makeStyles` for themed styles. Colours come from tokens, never hard-coded, except brand moments (`BRAND`).
+- Logo use follows `docs/brand-guidelines.md`: gold "Au" over a thin gold line, Instrument Serif wordmark, no other fonts or effects. Inside the app, use the `Wordmark` component.
 - Copy follows the PRD wording: *service* for Church, *period* or *meeting* for Organisation, *period*, *category*, *money in* and *money out* for Personal or business.
 - The raw SMS in `src/lib/personal-data.ts` and the Java templates use the same wording. Change both together and run `npm run test:parser`.
 - The `parser/` package must stay free of Android imports so it can be tested with only the JDK.

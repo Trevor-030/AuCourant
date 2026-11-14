@@ -4,7 +4,7 @@ import Constants from 'expo-constants'
 import { useApp, type Demo, type Motion, type SessionDraft } from '../lib/store'
 import { DAYS, TODAY, addDays, plural, shortDate, toMin, weekdayOf } from '../lib/format'
 import { RADIUS, makeStyles, useTheme } from '../theme'
-import { AppBar, Button, Divided, EmptyState, RadioRow, Row, SectionLabel, Surface, SwitchRow, T, TextField } from '../ui/kit'
+import { AppBar, AppIcon, Button, Divided, EmptyState, RadioRow, Row, SectionLabel, Surface, SwitchRow, T, TextField } from '../ui/kit'
 import { CaretRightIcon, GitMergeIcon, TrashIcon } from '../ui/icons'
 import { Body, Footer } from '../ui/layout'
 import { Dialog, Sheet } from '../ui/overlays'
@@ -102,7 +102,7 @@ export function Settings() {
               {!personal && <Row title="Merge history" trailing={<Caret />} onPress={() => push({ name: 'merge-history' })} />}
               <Row title="Scan messages again" sub="Finds payments that arrived while the app was closed." trailing={<Caret />} onPress={() => push({ name: 'rescan' })} />
               <Row title="Networks supported" end="MTN" endTone="fg2" />
-              <Row title="About AuCourant" end={`Version ${Constants.expoConfig?.version ?? '1.0.0'}`} endTone="fg2" />
+              <Row leading={<AppIcon size={32} />} title="About AuCourant" sub="Stay au courant with your MoMo." end={`Version ${Constants.expoConfig?.version ?? '1.0.0'}`} endTone="fg2" />
             </Surface>
           </View>
 

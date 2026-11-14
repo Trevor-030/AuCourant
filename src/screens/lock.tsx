@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { useApp, type LockType } from '../lib/store'
 import { RADIUS, makeStyles, useTheme } from '../theme'
-import { AppBar, Button, InlineError, Radio, T, TextField, Wordmark } from '../ui/kit'
+import { AppBar, AppIcon, Button, InlineError, Radio, T, TextField, Wordmark } from '../ui/kit'
 import { FingerprintIcon, LockSimpleIcon } from '../ui/icons'
 import { Body, Fill, Footer } from '../ui/layout'
 import { Keypad, PasswordField, PinDots } from '../ui/lock'
@@ -336,7 +336,8 @@ export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => v
       {onBack ? (
         <AppBar title="Check your lock" onBack={onBack} />
       ) : (
-        <View style={{ paddingTop: 32, alignItems: 'center' }}>
+        <View style={{ paddingTop: 32, alignItems: 'center', gap: 12 }}>
+          <AppIcon size={56} />
           <Wordmark size={20} />
         </View>
       )}

@@ -47,7 +47,7 @@ function seed() {
 
 type Notify = (message: string, action?: Snack['action']) => void
 
-export function usePersonalState({ notify, empty }: { notify: Notify; empty: boolean }) {
+export function usePersonalState({ notify, empty, today }: { notify: Notify; empty: boolean; today: string }) {
   const [initial] = useState(seed)
   const [allPTxs, setPTxs] = useState<PTx[]>(initial.txs)
   const [rules, setRules] = useState<CategoryRule[]>(initial.rules)
@@ -59,11 +59,11 @@ export function usePersonalState({ notify, empty }: { notify: Notify; empty: boo
   const [pExportPrefs, setPExportPrefs] = useState<PExportPrefs>(DEFAULT_PEXPORT)
 
   const pTxs = empty ? [] : allPTxs
-  const period = periodInfo(periodId)
+  const period = periodInfo(periodId, today)
   const pTxsIn = useCallback((id: PeriodId) => {
-    const p = periodInfo(id)
+    const p = periodInfo(id, today)
     return pTxs.filter((t) => t.date >= p.from && t.date <= p.to)
-  }, [pTxs])
+  }, [pTxs, today])
   const categories = useMemo(() => allCategories.filter((c) => !c.hidden), [allCategories])
   const categoryName = useCallback((id: string | null) => (id ? (allCategories.find((c) => c.id === id)?.name ?? 'Unknown category') : 'Uncategorised'), [allCategories])
 
@@ -201,6 +201,24 @@ export function usePersonalState({ notify, empty }: { notify: Notify; empty: boo
     notify(n ? `Nickname saved: ${n}.` : 'Nickname removed.', { label: 'Undo', run: () => apply(prev) })
   }
 
+  /**
+   * Payments read from the phone's messages. The first load replaces the sample data and its
+   * made-up rules. Later loads only add payments that are new, so categories set by hand stay.
+   */
+  const loadPersonalTxs = (read: PTx[], replace: boolean) => {
+    if (replace) {
+      setRules([])
+      setNicknames({})
+      setCategories(DEFAULT_CATEGORIES.map((c) => ({ ...c })))
+      setPeriodId('month')
+      setPFilters(CLEAR_PFILTERS)
+      setPTxs(categoriseAll(read, []))
+      return
+    }
+    const have = new Set(allPTxs.map((t) => t.id))
+    setPTxs([...categoriseAll(read.filter((t) => !have.has(t.id)), rules), ...allPTxs])
+  }
+
   const resetPersonal = () => {
     const s = seed()
     setPTxs(s.txs)
@@ -237,6 +255,7 @@ export function usePersonalState({ notify, empty }: { notify: Notify; empty: boo
     moveCategory,
     deleteRule,
     setNickname,
+    loadPersonalTxs,
     resetPersonal,
   }
 }

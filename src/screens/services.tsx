@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import { View } from 'react-native'
 import { useApp } from '../lib/store'
-import { TODAY, addDays, plural } from '../lib/format'
+import { addDays, plural } from '../lib/format'
 import { Button, Divided, RadioRow, SectionLabel, Surface, T } from '../ui/kit'
 import { CalendarBlankIcon, PlusIcon } from '../ui/icons'
 import { Sheet } from '../ui/overlays'
 import { DateField } from '../ui/pickers'
 
 export function ServicePickerSheet({ open, onClose, allowCreate = true }: { open: boolean; onClose: () => void; allowCreate?: boolean }) {
-  const { services, serviceId, setServiceId, txsIn, push } = useApp()
+  const { services, serviceId, setServiceId, txsIn, push, today } = useApp()
   const [range, setRange] = useState(serviceId.startsWith('range:'))
-  const [from, setFrom] = useState(addDays(TODAY, -27))
-  const [to, setTo] = useState(TODAY)
+  const [from, setFrom] = useState(addDays(today, -27))
+  const [to, setTo] = useState(today)
   const [error, setError] = useState<string | null>(null)
 
   const pick = (id: string) => {

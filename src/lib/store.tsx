@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AccessibilityInfo, useColorScheme } from 'react-native'
 import {
   EXPORT_FIELDS,
@@ -19,7 +19,8 @@ import {
   type Unread,
   type Weekly,
 } from './data'
-import { DAYS, TODAY, addDays, inWindow, longDate, normalize, shortDate, toMin, weekdayOf } from './format'
+import { DAYS, TODAY, addDays, inWindow, latestWeekday, longDate, normalize, phoneToday, shortDate, toMin, weekdayOf } from './format'
+import { addChurchRows, emptyChurch, toPersonalTxs, type ChurchData, type CodeName, type InboxRow } from './inbox'
 import { usePersonalState } from './personal'
 
 export type ThemePref = 'dark' | 'light' | 'system'
@@ -67,6 +68,9 @@ export type Snack = { id: number; message: string; action?: { label: string; run
 export type ExportPrefs = { format: 'pdf' | 'csv'; hideMembers: boolean; fields: ExportField[] }
 export type TxFilters = { thisService: boolean; groupId: string | null; query: string }
 export type SessionDraft = { name: string; date: string; start: string; end: string }
+/** Sample payments (Expo Go, or before the first scan), or payments read from this phone's messages. */
+export type DataSource = 'sample' | 'messages'
+export type ScanResult = { messages: number; newPayments: number }
 
 export const DEMO_LOCK: Lock = { type: 'pin4', secret: '1234', fingerprint: false, recovery: 'K7M2-9QXA-4TNR' }
 export const DEFAULT_SERVICE = 'w:2026-10-25'
@@ -136,6 +140,13 @@ function useAppState() {
   const [weekly, setWeekly] = useState<Weekly>(initial.weekly)
   const [serviceId, setServiceId] = useState(DEFAULT_SERVICE)
   const [codes, setCodes] = useState<Record<string, string>>(initial.codes)
+  // Real messages replace the sample data at the first scan.
+  const [dataSource, setDataSource] = useState<DataSource>('sample')
+  const today = dataSource === 'messages' ? phoneToday() : TODAY
+  /** Numbers named at first run, kept so the first scan can file payments under them. */
+  const [firstRunCodes, setFirstRunCodes] = useState<CodeName[]>([])
+  /** Message IDs already read, so a skipped message is not listed again by the next scan. */
+  const seenSms = useRef(new Set<string>())
 
   const [lock, setLock] = useState<Lock | null>(null)
   const [useType, setUseType] = useState<UseType>('church')
@@ -150,7 +161,7 @@ function useAppState() {
   }, [])
 
   const empty = demo === 'empty'
-  const personal = usePersonalState({ notify, empty })
+  const personal = usePersonalState({ notify, empty, today })
   const txs = empty ? [] : allTxs
   const groups = useMemo(() => (empty ? [] : allGroups.filter((g) => !g.hidden)), [allGroups, empty])
   const unread = empty ? [] : allUnread
@@ -175,8 +186,7 @@ function useAppState() {
   // Services: weekly instances, special sessions sit beside their day.
   const services = useMemo<Service[]>(() => {
     const list: Service[] = []
-    let d = TODAY
-    while (weekdayOf(d) !== weekly.day) d = addDays(d, -1)
+    const d = latestWeekday(today, weekly.day)
     for (let i = 0; i < 4; i++) {
       const date = addDays(d, -7 * i)
       list.push({
@@ -194,7 +204,7 @@ function useAppState() {
       list.push({ id: 'sp:' + s.id, kind: 'special', title: s.name, date: s.date, dateLabel: longDate(s.date), start: s.start, end: s.end })
     }
     return list.sort((a, b) => (a.date === b.date ? toMin(b.start ?? '0:0') - toMin(a.start ?? '0:0') : a.date < b.date ? 1 : -1))
-  }, [weekly, specials, useType])
+  }, [weekly, specials, useType, today])
 
   const serviceOfTx = useCallback(
     (t: Tx): string | null => {
@@ -311,7 +321,7 @@ function useAppState() {
     const label = existing?.name ?? n
     const moved = allTxs.filter((t) => t.reference?.trim() === code && t.groupId !== to).map((t) => ({ id: t.id, from: t.groupId }))
     if (holding) {
-      const m: Merge = { id: 'm' + Date.now(), sourceId: holding.id, targetId: to, txIds: moved.map((x) => x.id), date: TODAY, code, createdGroupId }
+      const m: Merge = { id: 'm' + Date.now(), sourceId: holding.id, targetId: to, txIds: moved.map((x) => x.id), date: today, code, createdGroupId }
       applyMerge(m)
       notify(`Named code ${code} as ${label}.`, { label: 'Undo', run: () => revertMerge(m) })
       return to
@@ -352,6 +362,7 @@ function useAppState() {
     setGroups(gs)
     setTxs(ts)
     setCodes(cs)
+    setFirstRunCodes((prev) => [...prev.filter((p) => !rows.some((r) => r.code === p.code)), ...rows])
   }
 
   /** Wordings and number codes that count in a group: "Offertory, 1". */
@@ -370,7 +381,7 @@ function useAppState() {
       sourceId,
       targetId,
       txIds: allTxs.filter((t) => t.groupId === sourceId).map((t) => t.id),
-      date: TODAY,
+      date: today,
     }
     const removed = allSuggestions.filter((s) => [s.keepId, s.mergeId].includes(sourceId))
     applyMerge(m)
@@ -420,6 +431,49 @@ function useAppState() {
     setServiceId('sp:' + id)
   }
 
+  /**
+   * Takes what the phone's MoMo messages hold (read and parsed in Java) and shows it in place
+   * of the sample data. Both use types are filled, so switching later loses nothing.
+   *
+   * The first scan starts clean. A later scan only adds what is new: group names, merges,
+   * named codes, moved payments and categories all stay as they are.
+   */
+  const loadMessages = (rows: InboxRow[]): ScanResult => {
+    const first = dataSource !== 'messages'
+    if (first) seenSms.current = new Set()
+    const fresh = rows.filter((r) => !seenSms.current.has(r.sms.id))
+    for (const r of rows) seenSms.current.add(r.sms.id)
+
+    const before: ChurchData = first
+      ? emptyChurch(firstRunCodes)
+      : { txs: allTxs, groups: allGroups, merges, suggestions: allSuggestions, unread: allUnread, codes }
+    // Organisations have no built-in pairs (architecture.md, use type).
+    const next = addChurchRows(before, fresh, { builtInPairs: useType !== 'organisation' })
+    setTxs(next.txs)
+    setGroups(next.groups)
+    setMerges(next.merges)
+    setSuggestions(next.suggestions)
+    setUnread(next.unread)
+    setCodes(next.codes)
+
+    // All rows, not only the new ones: a reversal takes its person from the payment it reverses.
+    const mine = toPersonalTxs(rows)
+    const known = new Set(first ? [] : personal.allPTxs.map((t) => t.id))
+    // Count what this use type shows: received payments for a church, every payment for Personal.
+    const newPayments = useType === 'personal' ? mine.filter((t) => !known.has(t.id)).length : next.added
+    personal.loadPersonalTxs(mine, first)
+
+    if (first) {
+      setSpecials([])
+      setServiceId('w:' + latestWeekday(phoneToday(), weekly.day))
+      setTxFilters({ thisService: true, groupId: null, query: '' })
+      setSessionDraft(null)
+      setDemo('populated')
+      setDataSource('messages')
+    }
+    return { messages: rows.length, newPayments }
+  }
+
   const resetData = () => {
     const s = seed()
     setTxs(s.txs)
@@ -430,6 +484,9 @@ function useAppState() {
     setSpecials(s.specials)
     setWeekly(s.weekly)
     setCodes(s.codes)
+    setDataSource('sample')
+    setFirstRunCodes([])
+    seenSms.current = new Set()
     setServiceId(DEFAULT_SERVICE)
     setTxFilters({ thisService: true, groupId: null, query: '' })
     setSessionDraft(null)
@@ -486,6 +543,9 @@ function useAppState() {
     enterApp,
     jumpFlow,
     eraseAll,
+    today,
+    dataSource,
+    loadMessages,
     txs,
     allTxs,
     groups,

@@ -129,7 +129,8 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 
 - **More real SMS samples** when available: Telecel, AirtelTigo, messy typed references, and **a payment with a number as the reference**. The MVP supports **MTN only**, built from the samples already collected.
 - A backup file for groups, merges, reference codes and sessions, so the last-resort erase costs less. Deferred, not in the MVP.
-- Real data behind the React Native screens. The UI runs on the prototype's sample data today. The MTN parser registry and reference cleaner now exist in Java (`native/android/java/com/aucourant/parser`, several templates provisional) but are not yet connected to storage. Still to build in Java: the live SMS receiver, Room storage, and wiring the lock to `LockModule` (hashing is ready) and fingerprint to AndroidX Biometric.
+- Stored data behind the React Native screens. The inbox scan now feeds the screens: after message access is allowed, the app reads the MoMo messages, parses them with the Java registry (`native/android/java/com/aucourant/parser`, several templates provisional) and shows real payments instead of the sample data. For now the grouping rules above (match key, built-in pairs, code book, merge suggestions) run in TypeScript (`src/lib/inbox.ts`) and everything is held in memory, so nothing survives a restart. Still to build in Java: Room storage (which takes over grouping and makes the scan a one-time step), the live SMS receiver, and wiring the lock to `LockModule` (hashing is ready) and fingerprint to AndroidX Biometric.
+- Not yet run on a real phone. The scan is checked by `npm run test:inbox`, which pushes the sample SMS text through the Java parser and the TypeScript grouping and expects the sample groups back.
 - Release builds should drop the INTERNET permission (development builds need it to load JavaScript from the computer).
 
 ## Spikes & experiments
@@ -193,9 +194,18 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 - MTN only for the MVP, using the existing samples.
 - Undo: message for about 8 seconds, plus Merge history in Settings for merges and named codes.
 
+## Choices made while wiring real messages (two-way doors)
+
+- **Church and organisation count only "Payment received" messages.** They carry the Reference field. Cash In, reversals and money out are read but only shown in the Personal views.
+- **Similarity for merge suggestions:** names are compared without spaces or punctuation. Identical after that ("Thanks giving"), or at least 80% alike by edit distance with 4 or more letters ("Havest"), is suggested. Tune with real references (spike 3).
+- **A second scan only adds.** Payments already shown are skipped by transaction ID, a message the treasurer skipped is not listed again, and a pair kept separate is not suggested again. New payments with a merged or renamed group's wording follow that group.
+- **Messages with a known type but no amount** go to *Not read*, like messages no template matches.
+- **The first real scan clears the sample data,** including the sample special session and code names. Numbers named at first run are kept.
+
 ## Open questions
 
 - Which Android versions must be supported (affects permissions and the oldest phones)?
+- Should a Cash In count as a church payment? Today it does not (see choices above).
 - Personal use (spending views, categories, small business): see `architecture-personal.md`. Budgets and fee warnings stay deferred.
 - A giver might type an amount like "50" as the reference. Is it a code, or noise? Needs real samples.
 - Should a number with 4 or more digits ever count as a code (for example 1001)? Today it is treated as typed text.

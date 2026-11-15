@@ -148,13 +148,14 @@ Decision rule: if most fail, add one parser class per network before promising P
 
 ## Built (November 2026)
 
-The Personal views run on sample data, at the same stage as the church screens. Where things live:
+The Personal views start on sample data and switch to the phone's real payments after the scan, at the same stage as the church screens (in memory, not yet run on a phone; see `architecture.md`, Missing pieces). Where things live:
 
 | Piece | Where |
 |---|---|
 | MTN parser registry, one class per type, reference cleaner | `native/android/java/com/aucourant/parser/` (plain Java, no Android imports) |
 | Parser checks (plain JDK, no JUnit) | `native/android/test/.../ParserCheck.java`, run with `npm run test:parser` |
 | Bridge | `SmsModule.parseMessages(bodies)` and `SmsNative.parse()` in `src/native/index.ts` |
+| Parsed messages into payments (`toPersonalTxs`), checked by `npm run test:inbox` | `src/lib/inbox.ts` |
 | Types, sample payments, default categories | `src/lib/personal-data.ts` |
 | Categoriser (person rule, word rule, built-in type rule) | `src/lib/categorise.ts` |
 | Periods | `src/lib/periods.ts` |
@@ -171,4 +172,11 @@ The Personal views run on sample data, at the same stage as the church screens. 
 - Category totals on the Categories tab are money out; a category with only money in shows its money in.
 - Personal sample data starts with a few rules "confirmed earlier" (Ama Owusu is Family; *fresh mart* is Food; *fuel* is Transport; *goods* is Business) so the screens look like a real second month.
 
-**Still to build:** Room storage and the live receiver (shared with church), then running the categoriser over stored payments the first time Personal opens.
+**Choices made while wiring real messages (two-way doors):**
+- Real payments start with no rules: the sample rules are dropped at the first scan, so only the built-in type rules apply until the user confirms one.
+- *Fees paid* is the MoMo fee plus any tax charged on the payment.
+- A reversal message only quotes the reversed payment's ID. The person is taken from that payment; if it is not in the inbox the payment is shown as *Reversal*.
+- A message that gives only a number (cash in) uses the name another message gave for that number.
+- Names written in capitals in the SMS are shown in title case. Shop and biller names are kept as written.
+
+**Still to build:** Room storage and the live receiver (shared with church), so payments, categories, rules and nicknames survive a restart.

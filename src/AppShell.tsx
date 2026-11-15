@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { useApp, type OnbStep, type Route, type Tab } from './lib/store'
 import { makeRecoveryCode } from './lib/data'
+import { plural } from './lib/format'
 import { DURATION, makeStyles, useTheme } from './theme'
 import { T } from './ui/kit'
 import { ExportIcon, HouseIcon, ReceiptIcon, StackIcon, TagIcon, type Icon } from './ui/icons'
@@ -85,9 +86,20 @@ function BottomNav() {
 }
 
 function Rescan() {
-  const { setTab } = useApp()
+  const { setTab, notify, dataSource } = useApp()
   const [done, setDone] = useState(false)
-  return done ? <ScanComplete actionLabel="Go to Home" onAction={() => setTab('home')} /> : <Scanning onDone={() => setDone(true)} />
+  // Only a scan after the first one has "new" payments to report.
+  const again = useRef(dataSource === 'messages')
+  return done ? (
+    <ScanComplete actionLabel="Go to Home" onAction={() => setTab('home')} />
+  ) : (
+    <Scanning
+      onDone={(result) => {
+        setDone(true)
+        if (result && again.current) notify(result.newPayments ? `${plural(result.newPayments, 'new payment')} found.` : 'No new payments since the last scan.')
+      }}
+    />
+  )
 }
 
 function NewRecovery({ code }: { code: string }) {

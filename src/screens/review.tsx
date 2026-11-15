@@ -11,6 +11,8 @@ import { CodeSheet, type CodeSheetState } from './codes'
 
 const THRESHOLD = 96
 
+const UNREAD_PAGE = 30
+
 export function Review({ initialTab }: { initialTab?: ReviewTab }) {
   const s = useStyles()
   const { c } = useTheme()
@@ -21,6 +23,8 @@ export function Review({ initialTab }: { initialTab?: ReviewTab }) {
     personal ? 'unread' : (initialTab ?? (suggestions.length ? 'merges' : pendingCodes.length ? 'codes' : unread.length ? 'unread' : 'merges')),
   )
   const [codeSheet, setCodeSheet] = useState<CodeSheetState>(null)
+  // A real inbox can hold many messages no template reads, so the list grows on request.
+  const [unreadLimit, setUnreadLimit] = useState(UNREAD_PAGE)
 
   const copy = async (raw: string) => {
     try {
@@ -103,7 +107,7 @@ export function Review({ initialTab }: { initialTab?: ReviewTab }) {
               </T>
               <Surface>
                 <Divided>
-                  {unread.map((u) => (
+                  {unread.slice(0, unreadLimit).map((u) => (
                     <View key={u.id} style={s.unread}>
                       <View style={s.between}>
                         <T v="meta" tone="fg3" num>
@@ -128,6 +132,11 @@ export function Review({ initialTab }: { initialTab?: ReviewTab }) {
                   ))}
                 </Divided>
               </Surface>
+              {unread.length > unreadLimit && (
+                <Button variant="secondary" full style={{ marginTop: 12 }} onPress={() => setUnreadLimit(unreadLimit + UNREAD_PAGE)}>
+                  {`Show more messages (${unread.length - unreadLimit} left)`}
+                </Button>
+              )}
             </>
           ) : (
             <Surface>

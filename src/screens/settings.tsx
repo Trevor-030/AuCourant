@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Pressable, View } from 'react-native'
 import Constants from 'expo-constants'
 import { useApp, type Demo, type Motion, type SessionDraft } from '../lib/store'
-import { DAYS, TODAY, addDays, plural, shortDate, toMin, weekdayOf } from '../lib/format'
+import { DAYS, latestWeekday, plural, shortDate, toMin } from '../lib/format'
 import { RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, AppIcon, Button, Divided, EmptyState, RadioRow, Row, SectionLabel, Surface, SwitchRow, T, TextField } from '../ui/kit'
 import { CaretRightIcon, GitMergeIcon, TrashIcon } from '../ui/icons'
@@ -19,7 +19,7 @@ function Caret() {
 }
 
 export function Settings() {
-  const { back, push, themePref, setThemePref, lock, setLock, weekly, eraseAll, codes, pendingCodes, useType, rules } = useApp()
+  const { back, push, themePref, setThemePref, lock, setLock, weekly, eraseAll, codes, pendingCodes, useType, rules, dataSource } = useApp()
   const [del, setDel] = useState(false)
   const [usedFor, setUsedFor] = useState(false)
   const org = useType === 'organisation'
@@ -101,6 +101,7 @@ export function Settings() {
               )}
               {!personal && <Row title="Merge history" trailing={<Caret />} onPress={() => push({ name: 'merge-history' })} />}
               <Row title="Scan messages again" sub="Finds payments that arrived while the app was closed." trailing={<Caret />} onPress={() => push({ name: 'rescan' })} />
+              <Row title="Payments shown" sub={dataSource === 'messages' ? undefined : 'Made-up payments, until this phone\'s messages are read.'} end={dataSource === 'messages' ? 'Your messages' : 'Sample data'} endTone="fg2" />
               <Row title="Networks supported" end="MTN" endTone="fg2" />
               <Row leading={<AppIcon size={32} />} title="About AuCourant" sub="Stay au courant with your MoMo." end={`Version ${Constants.expoConfig?.version ?? '1.0.0'}`} endTone="fg2" />
             </Surface>
@@ -297,14 +298,8 @@ export function MergeHistory() {
   )
 }
 
-function latest(day: number) {
-  let d = TODAY
-  while (weekdayOf(d) !== day) d = addDays(d, -1)
-  return d
-}
-
 export function WeeklyService() {
-  const { back, weekly, setWeekly, serviceId, setServiceId, notify, useType } = useApp()
+  const { back, weekly, setWeekly, serviceId, setServiceId, notify, useType, today } = useApp()
   const [day, setDay] = useState(weekly.day)
   const [start, setStart] = useState(weekly.start)
   const [end, setEnd] = useState(weekly.end)
@@ -317,7 +312,7 @@ export function WeeklyService() {
     const e = check()
     if (e) return setError(e)
     setWeekly({ day, start, end })
-    if (serviceId.startsWith('w:')) setServiceId('w:' + latest(day))
+    if (serviceId.startsWith('w:')) setServiceId('w:' + latestWeekday(today, day))
     notify(`Weekly ${word} saved.`)
     back()
   }
@@ -387,8 +382,8 @@ function validate(v: SessionDraft): Errs {
 }
 
 export function SpecialSession() {
-  const { back, sessionDraft, setSessionDraft, addSpecial, notify, useType } = useApp()
-  const [v, setV] = useState<SessionDraft>(sessionDraft ?? { name: '', date: TODAY, start: '', end: '' })
+  const { back, sessionDraft, setSessionDraft, addSpecial, notify, useType, today } = useApp()
+  const [v, setV] = useState<SessionDraft>(sessionDraft ?? { name: '', date: today, start: '', end: '' })
   const [errs, setErrs] = useState<Errs>({})
 
   const update = (k: keyof SessionDraft, val: string) => {

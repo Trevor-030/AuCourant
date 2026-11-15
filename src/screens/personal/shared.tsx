@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { View } from 'react-native'
 import { useApp } from '../../lib/store'
-import { TODAY, addDays, longDate, money, plural } from '../../lib/format'
+import { addDays, longDate, money, plural } from '../../lib/format'
 import { PRESET_PERIODS, periodInfo } from '../../lib/periods'
 import type { PTx } from '../../lib/personal-data'
 import { makeStyles } from '../../theme'
@@ -62,10 +62,10 @@ export function PTxRow({ t, onPress, hidePerson }: { t: PTx; onPress: () => void
 
 /** Today, This week, This month, Last month, or chosen dates. */
 export function PeriodSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { periodId, setPeriodId, pTxsIn } = useApp()
+  const { periodId, setPeriodId, pTxsIn, today } = useApp()
   const [range, setRange] = useState(periodId.startsWith('range:'))
-  const [from, setFrom] = useState(addDays(TODAY, -27))
-  const [to, setTo] = useState(TODAY)
+  const [from, setFrom] = useState(addDays(today, -27))
+  const [to, setTo] = useState(today)
   const [error, setError] = useState<string | null>(null)
 
   const pick = (id: typeof periodId) => {
@@ -84,7 +84,7 @@ export function PeriodSheet({ open, onClose }: { open: boolean; onClose: () => v
         <View accessibilityRole="radiogroup" accessibilityLabel="Periods">
           <Divided>
             {PRESET_PERIODS.map((id) => {
-              const p = periodInfo(id)
+              const p = periodInfo(id, today)
               return (
                 <RadioRow
                   key={id}

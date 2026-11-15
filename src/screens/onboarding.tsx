@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Animated, AppState, Easing, Linking, Pressable, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useApp } from '../lib/store'
+import { useApp, type ScanResult } from '../lib/store'
 import { FIRST_RECOVERY_CODE } from '../lib/data'
-import { money, shortDate } from '../lib/format'
+import { money, plural, shortDate } from '../lib/format'
+import type { InboxRow } from '../lib/inbox'
 import { SmsNative, inExpoGo, type SmsPermission } from '../native'
 import { BRAND, DURATION, RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, Button, Divided, ErrorBox, LinkText, LogoMark, Row, Surface, T, Wordmark } from '../ui/kit'
@@ -295,40 +296,99 @@ function Denied({ onAllow }: { onAllow: () => void }) {
   )
 }
 
-export function Scanning({ onDone }: { onDone: () => void }) {
+const SCAN_FAILED = "We couldn't finish reading messages. Keep the app open and try again."
+const SORT_FAILED = 'AuCourant read your messages but could not sort them. Try again.'
+const ACCESS_OFF = 'Message access is off. Turn it on in phone settings, then try again.'
+/** Messages handed to the Java parser at a time, so the progress bar moves on a large inbox. */
+const PARSE_BATCH = 100
+const SAMPLE_TOTAL = 480
+
+/**
+ * A1e Scanning. In a build that can read SMS this reads the phone's MoMo messages, runs the Java
+ * parser and loads the result into the app. Where it cannot (Expo Go), it plays the sample scan.
+ */
+export function Scanning({ onDone }: { onDone: (result?: ScanResult) => void }) {
   const s = useStyles()
   const { c } = useTheme()
-  const { demo } = useApp()
-  const total = 480
+  const { demo, loadMessages } = useApp()
+  /** null while the phone is still collecting its MoMo messages. */
+  const [total, setTotal] = useState<number | null>(null)
   const [n, setN] = useState(0)
-  const [failed, setFailed] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
   const [run, setRun] = useState(0)
   const done = useRef(onDone)
   done.current = onDone
+  const load = useRef(loadMessages)
+  load.current = loadMessages
+  // Read through a ref: the first real scan resets the developer screen state, which must not start the scan again.
+  const demoNow = useRef(demo)
+  demoNow.current = demo
   useEffect(() => {
-    setN(0)
-    setFailed(false)
-    let v = 0
+    let alive = true
     let finish: ReturnType<typeof setTimeout> | undefined
-    const t = setInterval(() => {
-      v = Math.min(total, v + 12)
-      if (demo === 'error' && v >= 312) {
-        setN(312)
-        setFailed(true)
-        clearInterval(t)
+    let tick: ReturnType<typeof setInterval> | undefined
+    setN(0)
+    setFailed(null)
+
+    const readPhone = async () => {
+      setTotal(null)
+      const rows: InboxRow[] = []
+      try {
+        if (!(await SmsNative.hasPermission())) {
+          if (alive) setFailed(ACCESS_OFF)
+          return
+        }
+        const inbox = await SmsNative.readInbox(0)
+        if (!alive) return
+        setTotal(inbox.length)
+        for (let i = 0; i < inbox.length; i += PARSE_BATCH) {
+          const batch = inbox.slice(i, i + PARSE_BATCH)
+          const parsed = await SmsNative.parse(batch.map((m) => m.body))
+          if (!alive) return
+          batch.forEach((sms, k) => rows.push({ sms, parsed: parsed[k] }))
+          setN(rows.length)
+        }
+      } catch {
+        if (alive) setFailed(SCAN_FAILED)
         return
       }
-      setN(v)
-      if (v >= total) {
-        clearInterval(t)
-        finish = setTimeout(() => done.current(), 300)
+      // Sorting is kept apart from reading, so a grouping fault is not reported as a read failure.
+      try {
+        const result = load.current(rows)
+        finish = setTimeout(() => done.current(result), 300)
+      } catch (e) {
+        console.error('AuCourant could not sort the scanned messages', e)
+        if (alive) setFailed(SORT_FAILED)
       }
-    }, 50)
+    }
+
+    const playSample = () => {
+      setTotal(SAMPLE_TOTAL)
+      let v = 0
+      tick = setInterval(() => {
+        v = Math.min(SAMPLE_TOTAL, v + 12)
+        if (demoNow.current === 'error' && v >= 312) {
+          setN(312)
+          setFailed(SCAN_FAILED)
+          clearInterval(tick)
+          return
+        }
+        setN(v)
+        if (v >= SAMPLE_TOTAL) {
+          clearInterval(tick)
+          finish = setTimeout(() => done.current(), 300)
+        }
+      }, 50)
+    }
+
+    if (SmsNative.canReadMessages()) readPhone()
+    else playSample()
     return () => {
-      clearInterval(t)
+      alive = false
+      clearInterval(tick)
       clearTimeout(finish)
     }
-  }, [run, demo])
+  }, [run])
   return (
     <Fill style={{ justifyContent: 'center', paddingHorizontal: 24 }}>
       <T v="title" w="display" accessibilityRole="header">
@@ -337,13 +397,13 @@ export function Scanning({ onDone }: { onDone: () => void }) {
       <View
         accessibilityRole="progressbar"
         accessibilityLabel="Reading messages"
-        accessibilityValue={{ min: 0, max: total, now: n }}
+        accessibilityValue={{ min: 0, max: total ?? 0, now: n }}
         style={s.track}
       >
-        <View style={[s.fillBar, { width: `${(n / total) * 100}%`, backgroundColor: failed ? c.error : c.accent }]} />
+        <View style={[s.fillBar, { width: `${total ? (n / total) * 100 : 0}%`, backgroundColor: failed ? c.error : c.accent }]} />
       </View>
       <T num style={{ marginTop: 12 }} accessibilityLiveRegion="polite">
-        Reading messages… {n} of {total}
+        {total == null ? 'Looking for MoMo messages…' : `Reading messages… ${n} of ${total}`}
       </T>
       {failed ? (
         <View style={{ marginTop: 24 }}>
@@ -354,7 +414,7 @@ export function Scanning({ onDone }: { onDone: () => void }) {
               </Button>
             }
           >
-            We couldn't finish reading messages. Keep the app open and try again.
+            {failed}
           </ErrorBox>
         </View>
       ) : (
@@ -369,9 +429,11 @@ export function Scanning({ onDone }: { onDone: () => void }) {
 export function ScanComplete({ actionLabel, onAction, onLater }: { actionLabel: string; onAction: () => void; onLater?: () => void }) {
   const s = useStyles()
   const { c } = useTheme()
-  const { allTxs, allGroups, pendingCodes, groupName, useType, allPTxs } = useApp()
+  const { allTxs, allGroups, pendingCodes, groupName, useType, allPTxs, dataSource, unread } = useApp()
   const [noRefOpen, setNoRefOpen] = useState(false)
   const personal = useType === 'personal'
+  // A real scan can find nothing to sort: no MoMo messages yet, or none the parser could read.
+  const nothing = dataSource === 'messages' && (personal ? allPTxs.length === 0 : allTxs.length === 0)
   const named = allGroups
     .filter((g) => !g.hidden && !g.system && !g.code)
     .map((g) => ({ g, total: allTxs.filter((t) => t.groupId === g.id).reduce((sum, t) => sum + t.amount, 0) }))
@@ -399,12 +461,18 @@ export function ScanComplete({ actionLabel, onAction, onLater }: { actionLabel: 
       <Fill style={{ justifyContent: 'center' }}>
         <CheckCircleIcon size={40} weight="fill" color={c.gold} />
         <T v="hero" w="display" style={{ marginTop: 16 }} accessibilityRole="header">
-          Your payments are sorted
+          {nothing ? 'No payments found yet' : 'Your payments are sorted'}
         </T>
         <T tone="fg2" style={{ marginTop: 8 }}>
-          Here is what AuCourant found in your MoMo messages.
+          {!nothing
+            ? 'Here is what AuCourant found in your MoMo messages.'
+            : unread.length > 0
+              ? `AuCourant found ${plural(unread.length, 'MoMo message')} but could not read ${unread.length === 1 ? 'it' : 'them'} yet. You can see ${unread.length === 1 ? 'it' : 'them'} under Review.`
+              : personal
+                ? 'There are no MoMo payment messages on this phone yet. Scan again from Settings after your next payment.'
+                : 'There are no MoMo payments received on this phone yet. Scan again from Settings after the next payment arrives.'}
         </T>
-        {personal ? (
+        {nothing ? null : personal ? (
           <Surface divided style={{ marginTop: 24 }}>
             {stat('Money received', allPTxs.filter((t) => t.direction === 'in').length)}
             {stat('Money sent and spent', allPTxs.filter((t) => t.direction === 'out').length)}

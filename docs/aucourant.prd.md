@@ -175,6 +175,6 @@ A second, smaller audience exists: individuals who want to understand their own 
 
 **Non-goals for Personal (version 1):** budgets, fee warnings, line charts, balances worked out by the app, the contacts permission (names come from the SMS or a typed nickname), bank or account connections, and machine learning for categories.
 
-**Status:** built on sample data, like the church screens. The Java parser now reads every MTN message type Personal needs. Received and Cash In come from real samples; Sent, Shop payment, Bill, Cash out, Airtime and data, and Reversal are **provisional** best guesses until real samples arrive. Anything the parser cannot read goes to *Not read* and is never dropped.
+**Status:** built on sample data, like the church screens, and now filled from the phone's real MoMo messages after the scan in a development build (in memory, not yet run on a phone). The Java parser now reads every MTN message type Personal needs. Received and Cash In come from real samples; Sent, Shop payment, Bill, Cash out, Airtime and data, and Reversal are **provisional** best guesses until real samples arrive. Anything the parser cannot read goes to *Not read* and is never dropped.
 
 **Risks:** provisional parser wording may not match real messages (more *Not read* until fixed); Telecel and AirtelTigo use the MTN templates for now; the categoriser's automatic share on a real inbox is unknown until spike 2.

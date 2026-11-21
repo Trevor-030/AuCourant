@@ -212,7 +212,7 @@ export const SEED_UNREAD: Unread[] = [
 /** Per-church meaning of number references. Same in every service. */
 export const SEED_CODES: Record<string, string> = { '1': 'offering', '2': 'tithe', '3': 'harvest' }
 
-export const isCode = (ref: string | null | undefined) => !!ref && /^\d{1,3}$/.test(ref.trim())
+export const isCode = (ref: string | null | undefined) => !!ref && /^\d{1,6}$/.test(ref.trim())
 
 export const SEED_SPECIALS: Special[] = [
   { id: 'building-appeal', name: 'Building fund appeal', date: '2026-10-24', start: '16:00', end: '19:00' },

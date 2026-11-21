@@ -22,7 +22,8 @@ public class AuCourantPackage implements ReactPackage {
         return Arrays.<NativeModule>asList(
                 new ExportModule(context),
                 new LockModule(context),
-                new SmsModule(context)
+                new SmsModule(context),
+                new StoreModule(context)
         );
     }
 

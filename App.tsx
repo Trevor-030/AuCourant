@@ -8,7 +8,7 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular'
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium'
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold'
 import { InstrumentSerif_400Regular } from '@expo-google-fonts/instrument-serif/400Regular'
-import { AppProvider } from './src/lib/store'
+import { AppProvider, useApp } from './src/lib/store'
 import { AppShell } from './src/AppShell'
 import { CoachProvider } from './src/ui/overlays'
 import { useTheme } from './src/theme'
@@ -16,9 +16,12 @@ import { useTheme } from './src/theme'
 /** Keeps the window background in step with the theme (seen behind the keyboard and on resize). */
 function ThemedRoot() {
   const { c } = useTheme()
+  const { ready } = useApp()
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(c.canvas).catch(() => {})
   }, [c.canvas])
+  // Saved data loads first, so the app opens where it was (lock, app, or first run) without a flash.
+  if (!ready) return <View style={{ flex: 1, backgroundColor: c.canvas }} />
   return <AppShell />
 }
 

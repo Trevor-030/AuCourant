@@ -25,8 +25,12 @@ public final class ReferenceCleaner {
     private static final Pattern ONLY_PUNCTUATION = Pattern.compile("^[\\p{Punct}\\s]*$");
     /** Provisional, from 2 samples: "NAME ,2335xxxxxxx,tf from VODAFONE". */
     private static final Pattern AUTO_FILL = Pattern.compile("^.+?\\s*,\\s*\\+?\\d{9,13}\\s*,.*\\bfrom\\b.*$", Pattern.CASE_INSENSITIVE);
-    /** Provisional, no real sample yet: 1 to 3 digits. */
-    private static final Pattern CODE = Pattern.compile("^\\d{1,3}$");
+    /**
+     * Provisional, no real sample yet: 1 to 6 digits. 4 to 6 digits may be a code (1001) or not,
+     * so the app asks the treasurer to confirm before naming it. 7 or more is a phone or account
+     * number, kept as typed text.
+     */
+    private static final Pattern CODE = Pattern.compile("^\\d{1,6}$");
 
     private ReferenceCleaner() {
     }

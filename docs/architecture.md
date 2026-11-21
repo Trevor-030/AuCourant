@@ -129,8 +129,8 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 
 - **More real SMS samples** when available: Telecel, AirtelTigo, messy typed references, and **a payment with a number as the reference**. The MVP supports **MTN only**, built from the samples already collected.
 - A backup file for groups, merges, reference codes and sessions, so the last-resort erase costs less. Deferred, not in the MVP.
-- Stored data behind the React Native screens. The inbox scan now feeds the screens: after message access is allowed, the app reads the MoMo messages, parses them with the Java registry (`native/android/java/com/aucourant/parser`, several templates provisional) and shows real payments instead of the sample data. For now the grouping rules above (match key, built-in pairs, code book, merge suggestions) run in TypeScript (`src/lib/inbox.ts`) and everything is held in memory, so nothing survives a restart. Still to build in Java: Room storage (which takes over grouping and makes the scan a one-time step), the live SMS receiver, and wiring the lock to `LockModule` (hashing is ready) and fingerprint to AndroidX Biometric.
-- Not yet run on a real phone. The scan is checked by `npm run test:inbox`, which pushes the sample SMS text through the Java parser and the TypeScript grouping and expects the sample groups back.
+- **Storage is built (2026-11-21)**, design in `docs/superpowers/specs/2026-11-21-room-storage-design.md`. Room holds every list and setting; the grouping rules above run in Java (`native/android/java/com/aucourant/sorting`), and a scan reads, sorts and saves in one transaction. Edits stay in TypeScript and are saved through a queue. The lock is wired to hashes in Room. Still to build: the live SMS receiver (it can reuse `Scanner` and the sorter), fingerprint through AndroidX Biometric.
+- Not yet run on a real phone. The sorter is checked by `npm run test:inbox`, which pushes the sample SMS text through the Java parser and the Java sorter and expects the sample groups back. Room and the bridge only run on a phone (checklist in `docs/superpowers/plans/2026-11-21-room-storage.md`, Task 9).
 - Release builds should drop the INTERNET permission (development builds need it to load JavaScript from the computer).
 
 ## Spikes & experiments
@@ -203,6 +203,7 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 - **Messages with a known type but no amount** go to *Not read*, like messages no template matches.
 - **New messages while the app is open:** until the Java receiver exists, the app checks the inbox when it returns to the front and every 20 seconds, reading only messages newer than the last one seen (with a 10 minute overlap). It adds new payments and shows a short message; it never replaces a message offering Undo.
 - **64-bit phones only** (founder, 2026-11-21). The config plugin sets `reactNativeArchitectures=arm64-v8a`, so the APK has no 32-bit code and builds faster. x86_64 (emulators only) is left out; add it in `plugins/with-aucourant-native.js` to test on an emulator. The oldest Android version is Expo SDK 58's default.
+- **Saved lists are JSON rows in one Room table** (`record`: kind, id, position, json) plus a typed `lock_record`. Every list is loaded whole at launch, so no per-list columns are needed, and a field added in TypeScript needs no migration. Payments are sorted by date on load; small lists keep their order by position.
 - **The first real scan clears the sample data,** including the sample special session and code names. Numbers named at first run are kept.
 
 ## Open questions

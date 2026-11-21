@@ -3,10 +3,8 @@ import { Animated, AppState, BackHandler, Easing, Pressable, View } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { useApp, type OnbStep, type Route, type Tab } from './lib/store'
-import { makeRecoveryCode } from './lib/data'
 import { plural } from './lib/format'
 import { SmsNative } from './native'
-import { readMessages } from './native/scan'
 import { DURATION, makeStyles, useTheme } from './theme'
 import { T } from './ui/kit'
 import { ExportIcon, HouseIcon, ReceiptIcon, StackIcon, TagIcon, type Icon } from './ui/icons'
@@ -105,11 +103,15 @@ function Rescan() {
 }
 
 function NewRecovery({ code }: { code: string }) {
-  const { lock, setLock, back, notify } = useApp()
+  const { saveRecovery, back, notify } = useApp()
+  const saved = useRef<string | null>(null)
   // The old code stops working as soon as the new one is shown.
   useEffect(() => {
-    if (lock && lock.recovery !== code) setLock({ ...lock, recovery: code })
-  }, [code, lock, setLock])
+    if (saved.current === code) return
+    saved.current = code
+    saveRecovery(code).catch(() => notify('Could not save the new code. Try again.'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code])
   return (
     <RecoveryCode
       code={code}
@@ -122,7 +124,7 @@ function NewRecovery({ code }: { code: string }) {
 }
 
 function Screen({ route }: { route: Route }) {
-  const { back, replace, lock, setLock, notify, setPhase, useType } = useApp()
+  const { back, replace, lock, saveLock, newRecoveryCode, notify, setPhase, useType } = useApp()
   const personal = useType === 'personal'
   switch (route.name) {
     case 'home':
@@ -163,7 +165,7 @@ function Screen({ route }: { route: Route }) {
       return (
         <LockScreen
           onBack={back}
-          onSuccess={() => replace({ name: 'new-recovery', code: makeRecoveryCode() })}
+          onSuccess={() => newRecoveryCode().then((code) => replace({ name: 'new-recovery', code }))}
           onForgot={() => setPhase({ kind: 'locked', step: 'reset' })}
         />
       )
@@ -175,15 +177,17 @@ function Screen({ route }: { route: Route }) {
           mode="change"
           onBack={back}
           onSaved={(type, secret) => {
-            if (lock) {
-              setLock({ ...lock, type, secret })
-              notify('Lock saved.')
-              back()
-            } else {
-              const code = makeRecoveryCode()
-              setLock({ type, secret, fingerprint: false, recovery: code })
-              replace({ name: 'new-recovery', code })
-            }
+            ;(async () => {
+              if (lock) {
+                await saveLock(type, secret)
+                notify('Lock saved.')
+                back()
+              } else {
+                const code = await newRecoveryCode()
+                await saveLock(type, secret, code)
+                replace({ name: 'new-recovery', code })
+              }
+            })().catch(() => notify('Could not save the lock. Try again.'))
           }}
         />
       )
@@ -191,12 +195,13 @@ function Screen({ route }: { route: Route }) {
 }
 
 function Locked() {
-  const { phase, setPhase, enterApp, lock, setLock, notify, useType } = useApp()
+  const { phase, setPhase, enterApp, unlock, saveLock, newRecoveryCode, notify, useType } = useApp()
   if (phase.kind !== 'locked') return null
   const go = (step: typeof phase.step) => setPhase({ kind: 'locked', step })
   switch (phase.step) {
     case 'lock':
-      return <LockScreen onSuccess={() => enterApp()} onForgot={() => go('reset')} />
+      // Back to the screen the user left (the app also locks after 5 minutes away).
+      return <LockScreen onSuccess={unlock} onForgot={() => go('reset')} />
     case 'reset':
       return <ResetLock onBack={() => go('lock')} onReset={() => go('new-lock')} />
     case 'new-lock':
@@ -204,15 +209,18 @@ function Locked() {
         <LockSetup
           mode="reset"
           onSaved={(type, secret) => {
-            setLock({ type, secret, fingerprint: lock?.fingerprint ?? false, recovery: makeRecoveryCode() })
-            go('new-recovery')
+            ;(async () => {
+              const code = await newRecoveryCode()
+              await saveLock(type, secret, code)
+              setPhase({ kind: 'locked', step: 'new-recovery', code })
+            })().catch(() => notify('Could not save the lock. Try again.'))
           }}
         />
       )
     case 'new-recovery':
       return (
         <RecoveryCode
-          code={lock?.recovery ?? ''}
+          code={phase.code ?? ''}
           onDone={() => {
             enterApp()
             notify(`New lock saved. Your payments and ${useType === 'personal' ? 'categories' : 'groups'} are all here.`)
@@ -267,21 +275,45 @@ function useHardwareBack() {
 }
 
 const NEW_MESSAGES_EVERY_MS = 20000
+/** Founder, 2026-11-21: lock again after 5 minutes away, so a quick switch to the MoMo app does not ask. */
+const AUTO_LOCK_MS = 5 * 60 * 1000
+
+/** Locks the app when it comes back after more than 5 minutes in the background, if a lock is set. */
+function useAutoLock() {
+  const app = useApp()
+  const ref = useRef(app)
+  ref.current = app
+  useEffect(() => {
+    let leftAt = 0
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'background') {
+        leftAt = Date.now()
+        return
+      }
+      if (st !== 'active' || !leftAt) return
+      const away = Date.now() - leftAt
+      leftAt = 0
+      const a = ref.current
+      // The route stack is kept, so unlocking returns to the same screen.
+      if (a.lock && a.phase.kind === 'app' && away > AUTO_LOCK_MS) a.setPhase({ kind: 'locked', step: 'lock' })
+    })
+    return () => sub.remove()
+  }, [])
+}
 
 /**
  * While real payments are on screen, looks for new MoMo messages when the app comes back to the
  * front and every 20 seconds while it stays open, so totals keep up during a service. New
- * payments are added quietly; nothing else changes. This stands in for the Java SMS receiver,
- * which arrives with storage.
+ * payments are added quietly; nothing else changes. Reading, sorting and saving happen in Java
+ * (scanMessages). This stands in for the live SMS receiver, which comes next.
  */
 function useNewMessages() {
   const app = useApp()
   const ref = useRef(app)
   ref.current = app
-  const on = app.dataSource === 'messages' && app.phase.kind === 'app'
+  const on = app.dataSource === 'messages' && app.phase.kind === 'app' && app.canScan
   useEffect(() => {
     if (!on || !SmsNative.canReadMessages()) return
-    let alive = true
     let busy = false
     // The Scan messages again screen does its own reading.
     const rescanning = () => ref.current.route.name === 'rescan'
@@ -290,9 +322,8 @@ function useNewMessages() {
       busy = true
       try {
         if (!(await SmsNative.hasPermission())) return
-        const rows = await readMessages(ref.current.newMessagesSince(), { alive: () => alive })
-        if (!rows || rows.length === 0 || rescanning()) return
-        const { newPayments } = ref.current.loadMessages(rows)
+        if (rescanning()) return
+        const { newPayments } = await ref.current.scanMessages()
         // Never replace a message that is offering Undo.
         if (newPayments > 0 && !ref.current.snack) ref.current.notify(`${plural(newPayments, 'new payment')} added.`)
       } catch {
@@ -306,7 +337,6 @@ function useNewMessages() {
     })
     const timer = setInterval(check, NEW_MESSAGES_EVERY_MS)
     return () => {
-      alive = false
       sub.remove()
       clearInterval(timer)
     }
@@ -332,6 +362,7 @@ export function AppShell() {
   const { phase, route, stack } = useApp()
   useHardwareBack()
   useNewMessages()
+  useAutoLock()
   const inApp = phase.kind === 'app'
   const showNav = inApp && NAV_ROUTES.includes(route.name)
   const key = phase.kind === 'app' ? `app:${stack.length}:${route.name}:${'id' in route ? route.id : ''}` : `${phase.kind}:${phase.step}`

@@ -7,7 +7,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#080d0c",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "android": {
       "package": "com.aucourant.app",
       "allowBackup": false,
@@ -37,6 +39,12 @@
       ],
       "expo-font",
       "./plugins/with-aucourant-native"
-    ]
+    ],
+    "owner": "trevordaniels",
+    "extra": {
+      "eas": {
+        "projectId": "6611c173-d93a-4bed-a301-f0b81bf98409"
+      }
+    }
   }
 }

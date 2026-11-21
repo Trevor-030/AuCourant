@@ -6,6 +6,7 @@ import { FIRST_RECOVERY_CODE } from '../lib/data'
 import { money, plural, shortDate } from '../lib/format'
 import type { InboxRow } from '../lib/inbox'
 import { SmsNative, inExpoGo, type SmsPermission } from '../native'
+import { readMessages } from '../native/scan'
 import { BRAND, DURATION, RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, Button, Divided, ErrorBox, LinkText, LogoMark, Row, Surface, T, Wordmark } from '../ui/kit'
 import { ChatCircleDotsIcon, ChatSlashIcon, CheckCircleIcon, DeviceMobileIcon, LockSimpleIcon, ShieldCheckIcon, type Icon } from '../ui/icons'
@@ -299,8 +300,6 @@ function Denied({ onAllow }: { onAllow: () => void }) {
 const SCAN_FAILED = "We couldn't finish reading messages. Keep the app open and try again."
 const SORT_FAILED = 'AuCourant read your messages but could not sort them. Try again.'
 const ACCESS_OFF = 'Message access is off. Turn it on in phone settings, then try again.'
-/** Messages handed to the Java parser at a time, so the progress bar moves on a large inbox. */
-const PARSE_BATCH = 100
 const SAMPLE_TOTAL = 480
 
 /**
@@ -332,22 +331,21 @@ export function Scanning({ onDone }: { onDone: (result?: ScanResult) => void }) 
 
     const readPhone = async () => {
       setTotal(null)
-      const rows: InboxRow[] = []
+      let rows: InboxRow[]
       try {
         if (!(await SmsNative.hasPermission())) {
           if (alive) setFailed(ACCESS_OFF)
           return
         }
-        const inbox = await SmsNative.readInbox(0)
-        if (!alive) return
-        setTotal(inbox.length)
-        for (let i = 0; i < inbox.length; i += PARSE_BATCH) {
-          const batch = inbox.slice(i, i + PARSE_BATCH)
-          const parsed = await SmsNative.parse(batch.map((m) => m.body))
-          if (!alive) return
-          batch.forEach((sms, k) => rows.push({ sms, parsed: parsed[k] }))
-          setN(rows.length)
-        }
+        const read = await readMessages(0, {
+          alive: () => alive,
+          onProgress: (done, all) => {
+            setTotal(all)
+            setN(done)
+          },
+        })
+        if (!read) return
+        rows = read
       } catch {
         if (alive) setFailed(SCAN_FAILED)
         return

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Pressable, View } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { useApp, type LockType } from '../lib/store'
+import { StoreNative } from '../native/store'
 import { RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, AppIcon, Button, InlineError, Radio, T, TextField, Wordmark } from '../ui/kit'
 import { FingerprintIcon, LockSimpleIcon } from '../ui/icons'
@@ -272,8 +273,9 @@ function useCooldown() {
     return () => clearInterval(t)
   }, [until])
   const left = Math.max(0, Math.ceil((until - now) / 1000))
-  const start = useCallback(() => {
-    setUntil(Date.now() + 30000)
+  /** Starts the wait: 30 seconds, or what is left of a wait the app was restarted in. */
+  const start = useCallback((seconds = 30) => {
+    setUntil(Date.now() + seconds * 1000)
     setNow(Date.now())
   }, [])
   return { left, start }
@@ -284,7 +286,9 @@ const TOO_MANY = 'Too many tries. Wait 30 seconds, then try again.'
 export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => void; onForgot: () => void; onBack?: () => void }) {
   const s = useStyles()
   const { c } = useTheme()
-  const { lock } = useApp()
+  const { lock, checkLock, sampleMode } = useApp()
+  // Fingerprint is simulated until AndroidX Biometric is added, so it is offered only on sample data.
+  const canUseFingerprint = !!lock?.fingerprint && (sampleMode || !StoreNative.available())
   const type = lock?.type ?? 'pin4'
   const isPin = type !== 'password'
   const len = type === 'pin6' ? 6 : 4
@@ -301,14 +305,16 @@ export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => v
     if (!blocked && error === TOO_MANY) setError(null)
   }, [blocked, error])
 
-  const check = (value: string) => {
+  const check = async (value: string) => {
     if (!lock) return
-    if (value === lock.secret) return onSuccess()
+    // Checked in Java against the saved hash; wrong tries are counted there too, across restarts.
+    const r = await checkLock(value).catch(() => ({ ok: false, waitSeconds: 0 }))
+    if (r.ok) return onSuccess()
     const t = tries + 1
     setEntry('')
-    if (t >= 5) {
+    if (r.waitSeconds > 0 || t >= 5) {
       setTries(0)
-      cool.start()
+      cool.start(r.waitSeconds || 30)
       return setError(TOO_MANY)
     }
     setTries(t)
@@ -370,7 +376,7 @@ export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => v
             Unlock app
           </Button>
         )}
-        {lock?.fingerprint && (
+        {canUseFingerprint && (
           <Button variant="secondary" full icon={FingerprintIcon} loading={scanning} onPress={fingerprint} style={{ marginTop: 8 }}>
             {scanning ? 'Checking fingerprint…' : 'Use fingerprint'}
           </Button>
@@ -389,7 +395,7 @@ function formatCode(v: string) {
 }
 
 export function ResetLock({ onBack, onReset }: { onBack: () => void; onReset: () => void }) {
-  const { lock, eraseAll, useType } = useApp()
+  const { checkRecovery, eraseAll, useType } = useApp()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [tries, setTries] = useState(0)
@@ -397,14 +403,16 @@ export function ResetLock({ onBack, onReset }: { onBack: () => void; onReset: ()
   const cool = useCooldown()
   const blocked = cool.left > 0
 
-  const submit = () => {
+  const submit = async () => {
     if (blocked) return setError(TOO_MANY)
     if (!code) return setError('Enter your recovery code.')
-    if (code.replace(/-/g, '') === lock?.recovery.replace(/-/g, '')) return onReset()
+    // Checked in Java against the saved hash, with the same wrong-try wait as the PIN.
+    const r = await checkRecovery(code).catch(() => ({ ok: false, waitSeconds: 0 }))
+    if (r.ok) return onReset()
     const t = tries + 1
-    if (t >= 5) {
+    if (r.waitSeconds > 0 || t >= 5) {
       setTries(0)
-      cool.start()
+      cool.start(r.waitSeconds || 30)
       return setError(TOO_MANY)
     }
     setTries(t)

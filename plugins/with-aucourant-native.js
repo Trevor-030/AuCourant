@@ -6,11 +6,12 @@
  * prebuild:
  *   1. copies them into android/app/src/main/java,
  *   2. registers AuCourantPackage in MainApplication,
- *   3. adds the FileProvider used to share exported reports.
+ *   3. adds the FileProvider used to share exported reports,
+ *   4. builds for 64-bit ARM phones only (founder, 2026-11-21).
  */
 const fs = require('fs')
 const path = require('path')
-const { withDangerousMod, withMainApplication, withAndroidManifest, AndroidConfig } = require('expo/config-plugins')
+const { withDangerousMod, withMainApplication, withAndroidManifest, withGradleProperties, AndroidConfig } = require('expo/config-plugins')
 
 const PKG = 'com.aucourant.nativebridge'
 const SRC = path.join('native', 'android', 'java')
@@ -75,4 +76,17 @@ const withFileProvider = (config) =>
     return cfg
   })
 
-module.exports = (config) => withFileProvider(withPackageRegistered(withJavaSources(config)))
+/**
+ * 64-bit only. Every 64-bit Android phone is arm64-v8a; 32-bit (armeabi-v7a, x86) is dropped.
+ * x86_64 is left out too because only emulators use it: add it here to test on one.
+ */
+const ABIS = 'arm64-v8a'
+const with64BitOnly = (config) =>
+  withGradleProperties(config, (cfg) => {
+    const props = cfg.modResults.filter((p) => !(p.type === 'property' && p.key === 'reactNativeArchitectures'))
+    props.push({ type: 'property', key: 'reactNativeArchitectures', value: ABIS })
+    cfg.modResults = props
+    return cfg
+  })
+
+module.exports = (config) => with64BitOnly(withFileProvider(withPackageRegistered(withJavaSources(config))))

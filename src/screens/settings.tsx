@@ -19,7 +19,7 @@ function Caret() {
 }
 
 export function Settings() {
-  const { back, push, themePref, setThemePref, lock, setLock, weekly, eraseAll, codes, pendingCodes, useType, rules, dataSource } = useApp()
+  const { back, push, themePref, setThemePref, lock, setFingerprint, weekly, eraseAll, codes, pendingCodes, useType, rules, dataSource } = useApp()
   const [del, setDel] = useState(false)
   const [usedFor, setUsedFor] = useState(false)
   const org = useType === 'organisation'
@@ -66,7 +66,7 @@ export function Settings() {
                 <>
                   <Row title="Lock type" sub={lockTypeLabel(lock.type)} trailing={<Caret />} onPress={() => push({ name: 'lock-change' })} />
                   <Row title="Change PIN or password" trailing={<Caret />} onPress={() => push({ name: 'lock-change' })} />
-                  <SwitchRow label="Use fingerprint" sub="Your PIN or password still works." checked={lock.fingerprint} onChange={(v) => setLock({ ...lock, fingerprint: v })} />
+                  <SwitchRow label="Use fingerprint" sub="Your PIN or password still works." checked={lock.fingerprint} onChange={(v) => setFingerprint(v).catch(() => {})} />
                 </>
               ) : (
                 <Row title="Set up lock" sub="The app opens without a lock now." trailing={<Caret />} onPress={() => push({ name: 'lock-change' })} />

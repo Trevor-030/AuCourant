@@ -148,7 +148,7 @@ Decision rule: if most fail, add one parser class per network before promising P
 
 ## Built (November 2026)
 
-The Personal views start on sample data and switch to the phone's real payments after the scan, at the same stage as the church screens (in memory, not yet run on a phone; see `architecture.md`, Missing pieces). Where things live:
+The Personal views start on sample data and switch to the phone's real payments after the scan, at the same stage as the church screens (saved in Room, not yet run on a phone; see `architecture.md`, Missing pieces). New payments are read and categorised in Java (`sorting/PersonalReader.java`, `sorting/Categoriser.java`); edits on screen use `src/lib/categorise.ts`. Where things live:
 
 | Piece | Where |
 |---|---|
@@ -179,4 +179,4 @@ The Personal views start on sample data and switch to the phone's real payments 
 - A message that gives only a number (cash in) uses the name another message gave for that number.
 - Names written in capitals in the SMS are shown in title case. Shop and biller names are kept as written.
 
-**Still to build:** Room storage and the live receiver (shared with church), so payments, categories, rules and nicknames survive a restart.
+**Still to build:** the live receiver (shared with church). Payments, categories, rules and nicknames are saved in Room since 2026-11-21.

@@ -26,8 +26,20 @@ export type ChurchData = {
 
 export const NO_REFERENCE = 'noref'
 
+/**
+ * Why a number reference may not be a code, so the treasurer is asked to confirm before naming it:
+ * 'long' for 4 or more digits (1001), 'amount' when it equals what a giver paid ("50" on GHS 50).
+ */
+export function codeDoubt(code: string, amounts: number[]): 'long' | 'amount' | null {
+  if (code.length >= 4) return 'long'
+  return amounts.some((a) => a === Number(code)) ? 'amount' : null
+}
+
 /** Church only: wordings that count as another group at once (architecture.md, grouping rule 3). */
 const BUILT_IN_PAIRS: Record<string, string> = { offertory: 'Offering', tithes: 'Tithe' }
+
+/** Message types that count as a payment to a church or organisation (founder decision, 2026-11-15). */
+const CHURCH_TYPES: ParsedType[] = ['RECEIVED', 'CASH_IN']
 
 /** Similar names at or above this score are suggested as a merge. Tune with real references (spike 3). */
 const SUGGEST_AT = 0.8
@@ -143,7 +155,8 @@ export function emptyChurch(codeNames: CodeName[] = []): ChurchData {
  * Adds received payments to the groups. Rows already present are skipped, so a rescan only adds
  * what is new, and everything the treasurer did (renames, merges, moved payments) stays.
  *
- * Only "Payment received" messages are church payments: they carry the Reference field.
+ * Church payments are money given to the wallet: "Payment received" and "Cash In" (a giver
+ * paying in at an agent). Reversals and money out are only shown in the Personal views.
  */
 export function addChurchRows(prev: ChurchData, rows: InboxRow[], opts: { builtInPairs: boolean }): ChurchData & { added: number } {
   const groups = prev.groups.map((g) => ({ ...g }))
@@ -206,7 +219,7 @@ export function addChurchRows(prev: ChurchData, rows: InboxRow[], opts: { builtI
   let added = 0
   for (const r of ordered(rows)) {
     const p = r.parsed
-    if (p.type !== 'RECEIVED' || p.status !== 'PARSED' || p.amount == null) continue
+    if (!CHURCH_TYPES.includes(p.type) || p.status !== 'PARSED' || p.amount == null) continue
     const id = rowKey(r)
     if (have.has(id)) continue
     have.add(id)
@@ -267,10 +280,14 @@ const cents = (n: number) => Math.round(n * 100) / 100
 /**
  * Every payment the parser read, with its direction, uncategorised. Run `categoriseAll` over
  * the result. The fee is the MoMo fee plus any tax charged on the payment.
+ *
+ * @param known payments already shown, when `rows` is only the newest part of the inbox
  */
-export function toPersonalTxs(rows: InboxRow[]): PTx[] {
+export function toPersonalTxs(rows: InboxRow[], known: PTx[] = []): PTx[] {
   const out: PTx[] = []
+  // Payments from an earlier scan still give a reversal its person and a bare number its name.
   const byTxId = new Map<string, PTx>()
+  for (const t of known) if (t.kind !== 'reversal' && t.txId) byTxId.set(t.txId, t)
   for (const r of ordered(rows)) {
     const p = r.parsed
     if (p.type === 'UNREAD' || p.status !== 'PARSED' || p.amount == null) continue
@@ -320,7 +337,7 @@ export function toPersonalTxs(rows: InboxRow[]): PTx[] {
   }
   // Some messages (cash in) give only a number. Use the name another message gave for it.
   const names = new Map<string, string>()
-  for (const t of out) if (t.phone && t.name !== t.phone) names.set(t.personKey, t.name)
+  for (const t of [...known, ...out]) if (t.phone && t.name !== t.phone) names.set(t.personKey, t.name)
   for (const t of out) if (t.phone && t.name === t.phone) t.name = names.get(t.personKey) ?? t.name
   return newestFirst(out)
 }

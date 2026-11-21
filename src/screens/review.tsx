@@ -82,6 +82,7 @@ export function Review({ initialTab }: { initialTab?: ReviewTab }) {
                         <T num>{p.code}</T>
                         <T v="sec" tone="fg2" num numberOfLines={1}>
                           {plural(p.count, 'payment')} · {money(p.total)}
+                          {p.doubt === 'amount' ? ' · may be an amount' : p.doubt === 'long' ? ' · long number' : ''}
                         </T>
                       </View>
                       <Button variant="text" onPress={() => setCodeSheet({ mode: 'name', code: p.code })}>

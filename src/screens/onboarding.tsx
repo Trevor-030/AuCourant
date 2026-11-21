@@ -2,11 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Animated, AppState, Easing, Linking, Pressable, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useApp, type ScanResult } from '../lib/store'
-import { FIRST_RECOVERY_CODE } from '../lib/data'
 import { money, plural, shortDate } from '../lib/format'
-import type { InboxRow } from '../lib/inbox'
 import { SmsNative, inExpoGo, type SmsPermission } from '../native'
-import { readMessages } from '../native/scan'
 import { BRAND, DURATION, RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, Button, Divided, ErrorBox, LinkText, LogoMark, Row, Surface, T, Wordmark } from '../ui/kit'
 import { ChatCircleDotsIcon, ChatSlashIcon, CheckCircleIcon, DeviceMobileIcon, LockSimpleIcon, ShieldCheckIcon, type Icon } from '../ui/icons'
@@ -17,7 +14,9 @@ import { RefNumbersStep } from './refnumbers'
 import { UseTypeStep } from './usetype'
 
 export function Onboarding() {
-  const { phase, setPhase, setLock, lock, enterApp, setCoachStep, useType } = useApp()
+  const { phase, setPhase, saveLock, setFingerprint, newRecoveryCode, notify, enterApp, setCoachStep, useType } = useApp()
+  /** Shown once on the next step; only its hash is kept. */
+  const [recovery, setRecovery] = useState('')
   if (phase.kind !== 'onboarding') return null
   const go = (step: typeof phase.step) => setPhase({ kind: 'onboarding', step })
   // A1c is for Church and Organisation only.
@@ -47,18 +46,22 @@ export function Onboarding() {
           mode="initial"
           onLater={finish}
           onSaved={(type, secret) => {
-            setLock({ type, secret, fingerprint: false, recovery: FIRST_RECOVERY_CODE })
-            go('recovery')
+            ;(async () => {
+              const code = await newRecoveryCode()
+              await saveLock(type, secret, code)
+              setRecovery(code)
+              go('recovery')
+            })().catch(() => notify('Could not save the lock. Try again.'))
           }}
         />
       )
     case 'recovery':
-      return <RecoveryCode code={lock?.recovery ?? FIRST_RECOVERY_CODE} onDone={() => go('fingerprint')} />
+      return <RecoveryCode code={recovery} onDone={() => go('fingerprint')} />
     case 'fingerprint':
       return (
         <FingerprintStep
           onTurnOn={() => {
-            if (lock) setLock({ ...lock, fingerprint: true })
+            setFingerprint(true).catch(() => notify('Could not save the lock. Try again.'))
             finish()
           }}
           onSkip={finish}
@@ -298,18 +301,17 @@ function Denied({ onAllow }: { onAllow: () => void }) {
 }
 
 const SCAN_FAILED = "We couldn't finish reading messages. Keep the app open and try again."
-const SORT_FAILED = 'AuCourant read your messages but could not sort them. Try again.'
 const ACCESS_OFF = 'Message access is off. Turn it on in phone settings, then try again.'
 const SAMPLE_TOTAL = 480
 
 /**
- * A1e Scanning. In a build that can read SMS this reads the phone's MoMo messages, runs the Java
- * parser and loads the result into the app. Where it cannot (Expo Go), it plays the sample scan.
+ * A1e Scanning. In a build that can read SMS this reads, sorts and saves the phone's MoMo messages
+ * in Java (scanMessages). Where it cannot (Expo Go, or the developer flows), it plays the sample scan.
  */
 export function Scanning({ onDone }: { onDone: (result?: ScanResult) => void }) {
   const s = useStyles()
   const { c } = useTheme()
-  const { demo, loadMessages } = useApp()
+  const { demo, scanMessages, canScan } = useApp()
   /** null while the phone is still collecting its MoMo messages. */
   const [total, setTotal] = useState<number | null>(null)
   const [n, setN] = useState(0)
@@ -317,8 +319,8 @@ export function Scanning({ onDone }: { onDone: (result?: ScanResult) => void }) 
   const [run, setRun] = useState(0)
   const done = useRef(onDone)
   done.current = onDone
-  const load = useRef(loadMessages)
-  load.current = loadMessages
+  const scan = useRef(scanMessages)
+  scan.current = scanMessages
   // Read through a ref: the first real scan resets the developer screen state, which must not start the scan again.
   const demoNow = useRef(demo)
   demoNow.current = demo
@@ -331,32 +333,25 @@ export function Scanning({ onDone }: { onDone: (result?: ScanResult) => void }) 
 
     const readPhone = async () => {
       setTotal(null)
-      let rows: InboxRow[]
       try {
         if (!(await SmsNative.hasPermission())) {
           if (alive) setFailed(ACCESS_OFF)
           return
         }
-        const read = await readMessages(0, {
-          alive: () => alive,
-          onProgress: (done, all) => {
+        // Read, sorted and saved in one go; the result is on screen even if this step was left.
+        // The whole inbox: messages already read are skipped in Java, so nothing counts twice.
+        const result = await scan.current({
+          since: 0,
+          onProgress: (read, all) => {
+            if (!alive) return
             setTotal(all)
-            setN(done)
+            setN(read)
           },
         })
-        if (!read) return
-        rows = read
-      } catch {
-        if (alive) setFailed(SCAN_FAILED)
-        return
-      }
-      // Sorting is kept apart from reading, so a grouping fault is not reported as a read failure.
-      try {
-        const result = load.current(rows)
-        finish = setTimeout(() => done.current(result), 300)
+        if (alive) finish = setTimeout(() => done.current(result), 300)
       } catch (e) {
-        console.error('AuCourant could not sort the scanned messages', e)
-        if (alive) setFailed(SORT_FAILED)
+        console.error('AuCourant could not read the messages', e)
+        if (alive) setFailed(SCAN_FAILED)
       }
     }
 
@@ -379,7 +374,7 @@ export function Scanning({ onDone }: { onDone: (result?: ScanResult) => void }) 
       }, 50)
     }
 
-    if (SmsNative.canReadMessages()) readPhone()
+    if (canScan && SmsNative.canReadMessages()) readPhone()
     else playSample()
     return () => {
       alive = false

@@ -7,11 +7,12 @@
  *   1. copies them into android/app/src/main/java,
  *   2. registers AuCourantPackage in MainApplication,
  *   3. adds the FileProvider used to share exported reports,
- *   4. builds for 64-bit ARM phones only (founder, 2026-11-21).
+ *   4. builds for 64-bit ARM phones only (founder, 2026-11-21),
+ *   5. adds Room (SQLite storage) with its Java annotation processor.
  */
 const fs = require('fs')
 const path = require('path')
-const { withDangerousMod, withMainApplication, withAndroidManifest, withGradleProperties, AndroidConfig } = require('expo/config-plugins')
+const { withDangerousMod, withMainApplication, withAndroidManifest, withAppBuildGradle, withGradleProperties, AndroidConfig } = require('expo/config-plugins')
 
 const PKG = 'com.aucourant.nativebridge'
 const SRC = path.join('native', 'android', 'java')
@@ -89,4 +90,24 @@ const with64BitOnly = (config) =>
     return cfg
   })
 
-module.exports = (config) => with64BitOnly(withFileProvider(withPackageRegistered(withJavaSources(config))))
+/** Room for app storage (docs/superpowers/specs/2026-11-21-room-storage-design.md). Java only: annotationProcessor, no KSP or kapt. */
+const ROOM = '2.8.5'
+const withRoom = (config) =>
+  withAppBuildGradle(config, (cfg) => {
+    const src = cfg.modResults.contents
+    if (src.includes('androidx.room:room-runtime')) return cfg
+    const anchor = /^dependencies \{\r?\n/m
+    if (!anchor.test(src)) throw new Error('[with-aucourant-native] Could not find the dependencies block in app/build.gradle.')
+    const lines = [
+      'dependencies {',
+      '    // AuCourant storage (Room). Added by plugins/with-aucourant-native.js.',
+      `    implementation("androidx.room:room-runtime:${ROOM}")`,
+      `    annotationProcessor("androidx.room:room-compiler:${ROOM}")`,
+      '',
+      '',
+    ]
+    cfg.modResults.contents = src.replace(anchor, lines.join('\n'))
+    return cfg
+  })
+
+module.exports = (config) => withRoom(with64BitOnly(withFileProvider(withPackageRegistered(withJavaSources(config)))))

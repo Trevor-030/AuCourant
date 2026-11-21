@@ -20,7 +20,7 @@ import {
   type Weekly,
 } from './data'
 import { DAYS, TODAY, addDays, inWindow, latestWeekday, longDate, normalize, phoneToday, shortDate, toMin, weekdayOf } from './format'
-import { addChurchRows, emptyChurch, toPersonalTxs, type ChurchData, type CodeName, type InboxRow } from './inbox'
+import { addChurchRows, codeDoubt, emptyChurch, NO_REFERENCE, toPersonalTxs, type ChurchData, type CodeName, type InboxRow } from './inbox'
 import { usePersonalState } from './personal'
 
 export type ThemePref = 'dark' | 'light' | 'system'
@@ -71,6 +71,9 @@ export type SessionDraft = { name: string; date: string; start: string; end: str
 /** Sample payments (Expo Go, or before the first scan), or payments read from this phone's messages. */
 export type DataSource = 'sample' | 'messages'
 export type ScanResult = { messages: number; newPayments: number }
+
+/** A message can reach the inbox a little after its own timestamp, so checks overlap by this much. */
+const NEW_MESSAGE_OVERLAP_MS = 10 * 60 * 1000
 
 export const DEMO_LOCK: Lock = { type: 'pin4', secret: '1234', fingerprint: false, recovery: 'K7M2-9QXA-4TNR' }
 export const DEFAULT_SERVICE = 'w:2026-10-25'
@@ -147,6 +150,9 @@ function useAppState() {
   const [firstRunCodes, setFirstRunCodes] = useState<CodeName[]>([])
   /** Message IDs already read, so a skipped message is not listed again by the next scan. */
   const seenSms = useRef(new Set<string>())
+  /** Phone time of the newest message read so far. Checks for new messages start a little before it. */
+  const newestSms = useRef(0)
+  const newMessagesSince = useCallback(() => Math.max(0, newestSms.current - NEW_MESSAGE_OVERLAP_MS), [])
 
   const [lock, setLock] = useState<Lock | null>(null)
   const [useType, setUseType] = useState<UseType>('church')
@@ -176,7 +182,10 @@ function useAppState() {
     () =>
       groups
         .filter((g) => g.code)
-        .map((g) => ({ group: g, code: g.code!, ...statsOf(txs.filter((t) => t.groupId === g.id)) }))
+        .map((g) => {
+          const inGroup = txs.filter((t) => t.groupId === g.id)
+          return { group: g, code: g.code!, doubt: codeDoubt(g.code!, inGroup.map((t) => t.amount)), ...statsOf(inGroup) }
+        })
         .filter((c) => c.count > 0),
     [groups, txs],
   )
@@ -343,6 +352,19 @@ function useAppState() {
     return to
   }
 
+  /**
+   * The treasurer said a number is not a code (an amount like "50", or a long number like 1001).
+   * Its payments move to No reference, and later payments with that number go there too.
+   */
+  const notACode = (code: string) => {
+    const holding = allGroups.find((g) => g.code === code && !g.hidden)
+    if (!holding) return
+    const ids = allTxs.filter((t) => t.groupId === holding.id).map((t) => t.id)
+    const m: Merge = { id: 'm' + Date.now(), sourceId: holding.id, targetId: NO_REFERENCE, txIds: ids, date: today, code }
+    applyMerge(m)
+    notify(`${code} is not a code. Its payments are in No reference.`, { label: 'Undo', run: () => revertMerge(m) })
+  }
+
   /** First-run setup: save several codes at once, quietly. Payments with each number move into its group. */
   const setupCodes = (rows: { code: string; name: string }[]) => {
     let gs = [...allGroups]
@@ -440,9 +462,17 @@ function useAppState() {
    */
   const loadMessages = (rows: InboxRow[]): ScanResult => {
     const first = dataSource !== 'messages'
-    if (first) seenSms.current = new Set()
+    if (first) {
+      seenSms.current = new Set()
+      newestSms.current = 0
+    }
     const fresh = rows.filter((r) => !seenSms.current.has(r.sms.id))
-    for (const r of rows) seenSms.current.add(r.sms.id)
+    for (const r of rows) {
+      seenSms.current.add(r.sms.id)
+      if (r.sms.date > newestSms.current) newestSms.current = r.sms.date
+    }
+    // Nothing new since the last look: leave every list as it is.
+    if (!first && fresh.length === 0) return { messages: rows.length, newPayments: 0 }
 
     const before: ChurchData = first
       ? emptyChurch(firstRunCodes)
@@ -456,10 +486,10 @@ function useAppState() {
     setUnread(next.unread)
     setCodes(next.codes)
 
-    // All rows, not only the new ones: a reversal takes its person from the payment it reverses.
-    const mine = toPersonalTxs(rows)
+    // All rows plus what is already shown: a reversal takes its person from the payment it reverses.
+    const mine = toPersonalTxs(rows, first ? [] : personal.allPTxs)
     const known = new Set(first ? [] : personal.allPTxs.map((t) => t.id))
-    // Count what this use type shows: received payments for a church, every payment for Personal.
+    // Count what this use type shows: payments received and cash in for a church, every payment for Personal.
     const newPayments = useType === 'personal' ? mine.filter((t) => !known.has(t.id)).length : next.added
     personal.loadPersonalTxs(mine, first)
 
@@ -487,6 +517,7 @@ function useAppState() {
     setDataSource('sample')
     setFirstRunCodes([])
     seenSms.current = new Set()
+    newestSms.current = 0
     setServiceId(DEFAULT_SERVICE)
     setTxFilters({ thisService: true, groupId: null, query: '' })
     setSessionDraft(null)
@@ -546,6 +577,7 @@ function useAppState() {
     today,
     dataSource,
     loadMessages,
+    newMessagesSince,
     txs,
     allTxs,
     groups,
@@ -556,6 +588,7 @@ function useAppState() {
     pendingCodes,
     codes,
     assignCode,
+    notACode,
     setupCodes,
     alsoCounted,
     specials,

@@ -48,8 +48,8 @@ Rules, applied in order:
 1. Trim spaces and trailing full stop.
 2. Empty, `-`, or only punctuation: **no reference**.
 3. Matches the auto-fill shape (a name, then a phone number, then short text with "from" and a network name): **no reference**. *Provisional: built from 2 samples, confirm with more samples and other networks.*
-4. Only digits, 1 to 3 of them: a **code**. Leading zeros are dropped, so "01" and "1" are the same code. *Provisional: no real sample yet.*
-5. Anything else: a typed purpose. Collapse repeated spaces. This includes a code with words ("1 offering"): **the words win**, because they already say the purpose. Digit-only values of 4 or more digits are also treated as typed text for now (open question below).
+4. Only digits, 1 to 6 of them: a **code**. Leading zeros are dropped, so "01" and "1" are the same code. *Provisional: no real sample yet.* A code of 4 to 6 digits, or one equal to the amount of one of its payments, is **doubtful**: the app asks the treasurer if they are sure before naming it (`codeDoubt` in `src/lib/inbox.ts`).
+5. Anything else: a typed purpose. Collapse repeated spaces. This includes a code with words ("1 offering"): **the words win**, because they already say the purpose. Digit-only values of 7 or more digits (phone and account numbers) are also typed text.
 
 The original field is always stored untouched next to the cleaned value, so a wrong rule can be fixed later without losing data.
 
@@ -141,7 +141,7 @@ Question:      Where does a typed purpose appear, how often is it clean, and how
 Answered:      MTN "Payment received" SMS carry a typed purpose in the Reference field (seen: "offering"). Blank and network auto-filled values also occur (4 samples).
 Still open:    Telecel and AirtelTigo formats, how messy real typed references are, and how number references appear in real SMS (length, spacing, punctuation)
 Spike:         Deferred. The founder chose to use the existing samples. Revisit when a pilot church provides real messages (1 to 2 days)
-Decision rule: keep reference-from-SMS if most payments with a purpose are clean; otherwise strengthen the cleaner and the merge suggestions. Keep the code rule (1 to 3 digits) if real number references fit it; widen it if not
+Decision rule: keep reference-from-SMS if most payments with a purpose are clean; otherwise strengthen the cleaner and the merge suggestions. Keep the code rule (1 to 6 digits, doubtful ones confirmed) if real number references fit it; change it if not
 ```
 
 **Spike 2: Can a sideloaded app read SMS on real phones?**
@@ -181,7 +181,8 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 - **Other networks:** Telecel and AirtelTigo messages are tried with the MTN template for now. Anything it cannot read goes to *Not read*. They are not promised as supported.
 - **Use type:** first run asks Church or Organisation. Personal shows as coming soon. It is a setting that changes wording and built-in known pairs only.
 - **Number references:** a per-church code book (code to group name). Numbers mean the same thing every week, but different churches use different numbers, so the book starts empty and is filled by naming codes as they first appear, or by adding them in Settings.
-- A code is 1 to 3 digits, leading zeros ignored. A code with words ("1 offering") uses the words.
+- A code is 1 to 6 digits, leading zeros ignored. A code with words ("1 offering") uses the words.
+- **Doubtful codes** (founder, 2026-11-21: "ask if they are sure"): 4 to 6 digits, or equal to the amount paid. Naming one asks *Is 50 really a code?* first. **Not a code** maps the number to *No reference* in the code book, so later payments with it go there too. It is undone like a named code (Undo, or Merge history).
 - An unnamed code goes into its own group (*Code 5*) until named. Naming a code is not a manual fix.
 - Codes are lost with a last-resort erase, like group names and merges.
 - **Fonts:** Instrument Serif and Inter replace Manrope and Inter.
@@ -196,16 +197,14 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 
 ## Choices made while wiring real messages (two-way doors)
 
-- **Church and organisation count only "Payment received" messages.** They carry the Reference field. Cash In, reversals and money out are read but only shown in the Personal views.
+- **Church and organisation count "Payment received" and "Cash In" messages** (founder, 2026-11-15: cash paid in at an agent is a church payment). Both are grouped by their reference; a Cash In with none goes to *No reference*. Reversals and money out are read but only shown in the Personal views.
 - **Similarity for merge suggestions:** names are compared without spaces or punctuation. Identical after that ("Thanks giving"), or at least 80% alike by edit distance with 4 or more letters ("Havest"), is suggested. Tune with real references (spike 3).
 - **A second scan only adds.** Payments already shown are skipped by transaction ID, a message the treasurer skipped is not listed again, and a pair kept separate is not suggested again. New payments with a merged or renamed group's wording follow that group.
 - **Messages with a known type but no amount** go to *Not read*, like messages no template matches.
+- **New messages while the app is open:** until the Java receiver exists, the app checks the inbox when it returns to the front and every 20 seconds, reading only messages newer than the last one seen (with a 10 minute overlap). It adds new payments and shows a short message; it never replaces a message offering Undo.
+- **64-bit phones only** (founder, 2026-11-21). The config plugin sets `reactNativeArchitectures=arm64-v8a`, so the APK has no 32-bit code and builds faster. x86_64 (emulators only) is left out; add it in `plugins/with-aucourant-native.js` to test on an emulator. The oldest Android version is Expo SDK 58's default.
 - **The first real scan clears the sample data,** including the sample special session and code names. Numbers named at first run are kept.
 
 ## Open questions
 
-- Which Android versions must be supported (affects permissions and the oldest phones)?
-- Should a Cash In count as a church payment? Today it does not (see choices above).
 - Personal use (spending views, categories, small business): see `architecture-personal.md`. Budgets and fee warnings stay deferred.
-- A giver might type an amount like "50" as the reference. Is it a code, or noise? Needs real samples.
-- Should a number with 4 or more digits ever count as a code (for example 1001)? Today it is treated as typed text.

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { categoriseAll } from './categorise'
 import { plural } from './format'
+import { mergeScan } from './persist'
 import { periodInfo, type PeriodId } from './periods'
 import { DEFAULT_CATEGORIES, SEED_RULES, seedPersonalTxs, type Category, type CategoryRule, type Direction, type PTx } from './personal-data'
 import type { Snack } from './store'
@@ -46,6 +47,8 @@ function seed() {
 }
 
 type Notify = (message: string, action?: Snack['action']) => void
+
+const newestFirst = (list: PTx[]) => list.sort((a, b) => (a.date === b.date ? b.time.localeCompare(a.time) : b.date.localeCompare(a.date)))
 
 export function usePersonalState({ notify, empty, today }: { notify: Notify; empty: boolean; today: string }) {
   const [initial] = useState(seed)
@@ -201,22 +204,30 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
     notify(n ? `Nickname saved: ${n}.` : 'Nickname removed.', { label: 'Undo', run: () => apply(prev) })
   }
 
+  /** What was saved on this phone, at launch. */
+  const hydratePersonal = (saved: { pTxs: PTx[]; categories: Category[]; rules: CategoryRule[]; nicknames: Record<string, string> }) => {
+    setPTxs(newestFirst(saved.pTxs))
+    setCategories(saved.categories.length ? saved.categories : DEFAULT_CATEGORIES.map((c) => ({ ...c })))
+    setRules(saved.rules)
+    setNicknames(saved.nicknames)
+  }
+
   /**
-   * Payments read from the phone's messages. The first load replaces the sample data and its
-   * made-up rules. Later loads only add payments that are new, so categories set by hand stay.
+   * Payments a scan read and categorised in Java. The first scan replaces the sample data and its
+   * made-up rules. Later scans only add or update payments, and a payment the user changed while
+   * the scan ran keeps the user's version.
    */
-  const loadPersonalTxs = (read: PTx[], replace: boolean) => {
-    if (replace) {
+  const applyPersonalScan = (read: PTx[], first: boolean, touched: Set<string>, categories?: Category[]) => {
+    if (first) {
       setRules([])
       setNicknames({})
-      setCategories(DEFAULT_CATEGORIES.map((c) => ({ ...c })))
+      setCategories(categories?.length ? categories : DEFAULT_CATEGORIES.map((c) => ({ ...c })))
       setPeriodId('month')
       setPFilters(CLEAR_PFILTERS)
-      setPTxs(categoriseAll(read, []))
+      setPTxs(newestFirst([...read]))
       return
     }
-    const have = new Set(allPTxs.map((t) => t.id))
-    setPTxs([...categoriseAll(read.filter((t) => !have.has(t.id)), rules), ...allPTxs])
+    if (read.length) setPTxs((ts) => newestFirst(mergeScan(ts, read, touched)))
   }
 
   const resetPersonal = () => {
@@ -231,6 +242,7 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   }
 
   return {
+    nicknames,
     pTxs,
     allPTxs,
     pTxsIn,
@@ -255,7 +267,8 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
     moveCategory,
     deleteRule,
     setNickname,
-    loadPersonalTxs,
+    hydratePersonal,
+    applyPersonalScan,
     resetPersonal,
   }
 }

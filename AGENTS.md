@@ -16,11 +16,11 @@ src/screens/                 one file per area (onboarding, home, groups, transa
 src/screens/personal/        Personal views: home, transactions, person, categories, export
 src/ui/                      kit (buttons, rows, fields), overlays (sheet, dialog, snackbar, coach marks), icons
 src/theme/                   colour and type tokens (Midnight Emerald Gold, dark + light), makeStyles
-src/native/                  typed bridge to the Java modules
+src/native/                  typed bridge to the Java modules; scan.ts reads and parses the inbox
 native/android/java/...      Java sources: ExportModule, LockModule, SmsModule (nativebridge/), MTN parser registry (parser/)
 native/android/test/...      plain-JDK parser checks (no Android, no JUnit), and ParseDump for the inbox checks
 scripts/                     test-parser.js and test-inbox.js (run the checks with only Node and the JDK)
-plugins/with-aucourant-native.js   copies the Java into android/ and registers it on every prebuild
+plugins/with-aucourant-native.js   copies the Java into android/ and registers it on every prebuild; 64-bit (arm64-v8a) only
 assets/                      app icon, adaptive icon layers, splash, favicon (built from assets/brand/svg/app)
 assets/brand/                logo kit: SVG masters and PNG exports. Rules in docs/brand-guidelines.md
 ```
@@ -59,7 +59,7 @@ Expo Go cannot run this app: it has its own Java modules. Use a development buil
 
 ## State of the app
 
-The app starts on the prototype's sample data. In a development build, once message access is allowed, the scan step reads the phone's MoMo messages, parses them in Java and replaces the sample data with real payments for both use types (`loadMessages` in the store, `src/lib/inbox.ts`). This path is covered by `npm run test:inbox` but has not been run on a phone yet. It is in memory only: nothing is saved, so every launch starts at first run and scans again. Expo Go keeps the sample data.
+The app starts on the prototype's sample data. In a development build, once message access is allowed, the scan step reads the phone's MoMo messages, parses them in Java and replaces the sample data with real payments for both use types (`loadMessages` in the store, `src/lib/inbox.ts`). This path is covered by `npm run test:inbox` but has not been run on a phone yet. It is in memory only: nothing is saved, so every launch starts at first run and scans again. Expo Go keeps the sample data. While real payments are on screen the app looks for new messages when it comes back to the front and every 20 seconds (`useNewMessages` in `src/AppShell.tsx`, `src/native/scan.ts`), standing in for the Java receiver.
 
 Also real: the Android SMS permission prompt, report files written and shared by `ExportModule`, PBKDF2 hashing and recovery codes in `LockModule` (not yet wired to the lock screens), and the MTN parser registry with reference cleaner (`SmsModule.parseMessages`; sent, merchant, bill, cash out, airtime and reversal templates are provisional). Still to build: Room storage (so data and settings survive a restart, and grouping moves to Java), the live SMS receiver, biometric unlock.
 

@@ -10,6 +10,7 @@ import {
   SEED_WEEKLY,
   seedMerges,
   seedTransactions,
+  makeRecoveryCode,
   type ExportField,
   type Group,
   type Merge,
@@ -20,19 +21,25 @@ import {
   type Weekly,
 } from './data'
 import { DAYS, TODAY, addDays, inWindow, latestWeekday, longDate, normalize, phoneToday, shortDate, toMin, weekdayOf } from './format'
-import { addChurchRows, codeDoubt, emptyChurch, NO_REFERENCE, toPersonalTxs, type ChurchData, type CodeName, type InboxRow } from './inbox'
-import { usePersonalState } from './personal'
+import { codeDoubt, NO_REFERENCE, type CodeName } from './inbox'
+import { createSaveQueue, launchPhase, mergeScan, settleNew, type GroupChange } from './persist'
+import { usePersonalState, type PExportPrefs } from './personal'
+import { DEFAULT_CATEGORIES, type Category, type CategoryRule, type PTx } from './personal-data'
+import type { PeriodId } from './periods'
+import { StoreNative, type LockCheck, type NativeScanResult, type Snapshot } from '../native/store'
+import { hasNative, LockNative } from '../native'
 
 export type ThemePref = 'dark' | 'light' | 'system'
 export type Motion = 'full' | 'reduced'
 export type Demo = 'populated' | 'loading' | 'empty' | 'error'
 export type LockType = 'pin4' | 'pin6' | 'password'
-export type Lock = { type: LockType; secret: string; fingerprint: boolean; recovery: string }
+/** The lock as the screens see it. The PIN or password and the recovery code stay in Java, hashed. */
+export type Lock = { type: LockType; fingerprint: boolean }
 export type UseType = 'church' | 'organisation' | 'personal'
 export type OnbStep = 'welcome' | 'use-type' | 'ref-numbers' | 'permission' | 'denied' | 'scanning' | 'complete' | 'lock-setup' | 'recovery' | 'fingerprint'
 export type Phase =
   | { kind: 'onboarding'; step: OnbStep }
-  | { kind: 'locked'; step: 'lock' | 'reset' | 'new-lock' | 'new-recovery' }
+  | { kind: 'locked'; step: 'lock' | 'reset' | 'new-lock' | 'new-recovery'; code?: string }
   | { kind: 'app' }
 export type ReviewTab = 'merges' | 'codes' | 'unread'
 export type Tab = 'home' | 'groups' | 'transactions' | 'categories' | 'export'
@@ -75,7 +82,10 @@ export type ScanResult = { messages: number; newPayments: number }
 /** A message can reach the inbox a little after its own timestamp, so checks overlap by this much. */
 const NEW_MESSAGE_OVERLAP_MS = 10 * 60 * 1000
 
-export const DEMO_LOCK: Lock = { type: 'pin4', secret: '1234', fingerprint: false, recovery: 'K7M2-9QXA-4TNR' }
+/** Sample lock for Expo Go and the developer flows (PIN 1234). Never saved. */
+export const DEMO_LOCK: Lock = { type: 'pin4', fingerprint: false }
+const DEMO_SECRET = '1234'
+export const DEMO_RECOVERY = 'K7M2-9QXA-4TNR'
 export const DEFAULT_SERVICE = 'w:2026-10-25'
 
 function seed() {
@@ -91,6 +101,13 @@ function seed() {
     codes: { ...SEED_CODES },
   }
 }
+
+/** Newest first by date, then time (payments, Not read). */
+function newestFirst<T extends { date: string; time: string }>(list: T[]): T[] {
+  return list.sort((a, b) => (a.date === b.date ? b.time.localeCompare(a.time) : b.date.localeCompare(a.date)))
+}
+
+const changeId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 
 export type Stats = { count: number; total: number }
 export function statsOf(list: Tx[]): Stats {
@@ -148,11 +165,21 @@ function useAppState() {
   const today = dataSource === 'messages' ? phoneToday() : TODAY
   /** Numbers named at first run, kept so the first scan can file payments under them. */
   const [firstRunCodes, setFirstRunCodes] = useState<CodeName[]>([])
-  /** Message IDs already read, so a skipped message is not listed again by the next scan. */
-  const seenSms = useRef(new Set<string>())
-  /** Phone time of the newest message read so far. Checks for new messages start a little before it. */
+  /** Phone time of the newest message read so far (saved by the Java scan). Checks start a little before it. */
   const newestSms = useRef(0)
-  const newMessagesSince = useCallback(() => Math.max(0, newestSms.current - NEW_MESSAGE_OVERLAP_MS), [])
+
+  // Saved data (Room). `ready` once what was saved is on screen; nothing is saved before that.
+  const [ready, setReady] = useState(() => !StoreNative.available())
+  /** Developer flows show sample data: nothing is saved or scanned until the app restarts. */
+  const [sampleMode, setSampleMode] = useState(false)
+  /** First run finished (the app was entered at least once). */
+  const [onboarded, setOnboarded] = useState(false)
+  /** The manual-fix record for the pilot (architecture.md, GroupChange). */
+  const [changes, setChanges] = useState<GroupChange[]>([])
+  const [saveFailed, setSaveFailed] = useState(false)
+  const queue = useRef(createSaveQueue((c) => StoreNative.save(c))).current
+  const canSave = ready && !sampleMode && StoreNative.available()
+  const canScan = !sampleMode && StoreNative.available()
 
   const [lock, setLock] = useState<Lock | null>(null)
   const [useType, setUseType] = useState<UseType>('church')
@@ -168,6 +195,53 @@ function useAppState() {
 
   const empty = demo === 'empty'
   const personal = usePersonalState({ notify, empty, today })
+
+  /** The latest lists, for work that finishes after an await (scans) or later (Undo). */
+  const latest = useRef({ allTxs, allGroups, merges })
+  latest.current = { allTxs, allGroups, merges }
+
+  // Each saved list goes to Room through the queue: only what changed is sent. Sample data is never saved.
+  const saveLists = canSave && dataSource === 'messages'
+  const useSaved = <T extends { id: string }>(table: string, list: T[], ordered = false) =>
+    useEffect(() => {
+      if (!saveLists) return
+      queue.sync(table, list, { ordered })
+      queue.flush().then((ok) => setSaveFailed(!ok))
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [list, saveLists])
+  const codeRows = useMemo(() => Object.entries(codes).map(([code, groupId]) => ({ id: code, code, groupId })), [codes])
+  const nicknameRows = useMemo(
+    () => Object.entries(personal.nicknames).map(([personKey, nickname]) => ({ id: personKey, personKey, nickname })),
+    [personal.nicknames],
+  )
+  useSaved('church_tx', allTxs)
+  useSaved('church_group', allGroups, true)
+  useSaved('merge_record', merges, true)
+  useSaved('suggestion', allSuggestions, true)
+  useSaved('unread', allUnread)
+  useSaved('code_entry', codeRows)
+  useSaved('special', specials, true)
+  useSaved('personal_tx', personal.allPTxs)
+  useSaved('category', personal.allCategories, true)
+  useSaved('category_rule', personal.rules, true)
+  useSaved('nickname', nicknameRows)
+  useSaved('group_change', changes)
+
+  const settings = useMemo(
+    () => ({ useType, themePref, exportPrefs, pExportPrefs: personal.pExportPrefs, weekly, onboarded, firstRunCodes, serviceId, periodId: personal.periodId }),
+    [useType, themePref, exportPrefs, personal.pExportPrefs, weekly, onboarded, firstRunCodes, serviceId, personal.periodId],
+  )
+  useEffect(() => {
+    if (!canSave) return
+    const t = setTimeout(() => {
+      StoreNative.saveSettings(settings).catch(() => setSaveFailed(true))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [settings, canSave])
+
+  useEffect(() => {
+    if (saveFailed) notify("Couldn't save. Try again.")
+  }, [saveFailed, notify])
   const txs = empty ? [] : allTxs
   const groups = useMemo(() => (empty ? [] : allGroups.filter((g) => !g.hidden)), [allGroups, empty])
   const unread = empty ? [] : allUnread
@@ -249,6 +323,50 @@ function useAppState() {
 
   const service = serviceInfo(serviceId)
 
+  // ---- Lock ----------------------------------------------------------------------
+  /** Lock secrets when nothing is saved (Expo Go, developer flows). Real builds keep only hashes in Java. */
+  const memLock = useRef<{ secret: string; recovery: string } | null>(null)
+  const realLock = () => StoreNative.available() && !sampleMode
+  const normalizeCode = (c: string) => c.replace(/-/g, '').trim().toUpperCase()
+  /** A recovery code to show once: secure random in Java on real builds. */
+  const newRecoveryCode = async () => (realLock() && hasNative('AuCourantLock') ? LockNative.recoveryCode() : makeRecoveryCode())
+  /** A new lock with its recovery code, or (no code) a new PIN or password that keeps the current code. */
+  const saveLock = async (type: LockType, secret: string, recovery?: string) => {
+    const fingerprint = lock?.fingerprint ?? false
+    if (realLock()) {
+      if (recovery || !lock) await StoreNative.setLock(type, secret, recovery ?? (await newRecoveryCode()), fingerprint)
+      else await StoreNative.changeSecret(type, secret)
+    } else {
+      memLock.current = { secret, recovery: recovery ?? memLock.current?.recovery ?? DEMO_RECOVERY }
+    }
+    setLock({ type, fingerprint })
+  }
+  /** A new recovery code; the old one stops working. */
+  const saveRecovery = async (code: string) => {
+    if (realLock()) await StoreNative.setRecovery(code)
+    else if (memLock.current) memLock.current = { ...memLock.current, recovery: code }
+  }
+  const setFingerprint = async (on: boolean) => {
+    if (realLock() && lock) await StoreNative.setFingerprint(on)
+    setLock((l) => (l ? { ...l, fingerprint: on } : l))
+  }
+  /** After 5 wrong tries Java refuses for 30 seconds, also across restarts (`waitSeconds`). */
+  const checkLock = async (value: string): Promise<LockCheck> =>
+    realLock() ? StoreNative.checkLock(value) : { ok: value === (memLock.current?.secret ?? DEMO_SECRET), waitSeconds: 0 }
+  const checkRecovery = async (code: string): Promise<LockCheck> =>
+    realLock() ? StoreNative.checkRecovery(code) : { ok: normalizeCode(code) === normalizeCode(memLock.current?.recovery ?? DEMO_RECOVERY), waitSeconds: 0 }
+  /**
+   * Back to where the user was, after the lock screen. If first run was interrupted after the lock
+   * was set, it counts as finished: a new recovery code can be made in Settings.
+   */
+  const unlock = () => (onboarded ? setPhase({ kind: 'app' }) : enterApp())
+
+  /** Adds one record to the manual-fix log. Returns its id, for the Undo that cancels it. */
+  const record = (kind: GroupChange['kind'], txId: string, from: string, to: string, undoes: string | null = null, id = changeId()) => {
+    setChanges((cs) => [...cs, { id, txId, fromGroupId: from, toGroupId: to, at: Date.now(), kind, undoes }])
+    return id
+  }
+
   // Reversible data actions. Each shows an Undo message instead of a dialog.
   const setTxGroup = (ids: string[], to: string, onlyIfIn?: string) =>
     setTxs((ts) => ts.map((t) => (ids.includes(t.id) && (!onlyIfIn || t.groupId === onlyIfIn) ? { ...t, groupId: to } : t)))
@@ -258,7 +376,14 @@ function useAppState() {
     if (!tx || tx.groupId === toId) return
     const from = tx.groupId
     setTxGroup([txId], toId)
-    notify(`Moved to ${groupName(toId)}.`, { label: 'Undo', run: () => setTxGroup([txId], from) })
+    const cid = record('manual', txId, from, toId)
+    notify(`Moved to ${groupName(toId)}.`, {
+      label: 'Undo',
+      run: () => {
+        setTxGroup([txId], from)
+        record('undo', txId, toId, from, cid)
+      },
+    })
   }
 
   const createGroupAndMove = (name: string, txId: string) => {
@@ -268,11 +393,13 @@ function useAppState() {
     const from = tx.groupId
     setGroups((gs) => [...gs, { id, name: name.trim() }])
     setTxGroup([txId], id)
+    const cid = record('manual', txId, from, id)
     notify(`Moved to ${name.trim()}.`, {
       label: 'Undo',
       run: () => {
         setTxGroup([txId], from)
         setGroups((gs) => gs.filter((g) => g.id !== id))
+        record('undo', txId, id, from, cid)
       },
     })
   }
@@ -283,6 +410,7 @@ function useAppState() {
     const n = name.trim()
     if (!n) return
     setGroups((gs) => gs.map((g) => (g.id === id ? { ...g, name: n } : g)))
+    record('manual', '', id, id)
   }
 
   const withCode = (code: string, groupId: string | undefined) =>
@@ -301,7 +429,9 @@ function useAppState() {
     setMerges((ms) => [m, ...ms.filter((x) => x.id !== m.id)])
     if (m.code) withCode(m.code, m.targetId)
   }
-  const revertMerge = (m: Merge) => {
+  const revertMerge = (undone: Merge) => {
+    // Payments added to the merge since it was made (by a scan) are split off too.
+    const m = latest.current.merges.find((x) => x.id === undone.id) ?? undone
     setTxGroup(m.txIds, m.sourceId, m.targetId)
     setGroups((gs) =>
       gs.map((g) =>
@@ -332,7 +462,14 @@ function useAppState() {
     if (holding) {
       const m: Merge = { id: 'm' + Date.now(), sourceId: holding.id, targetId: to, txIds: moved.map((x) => x.id), date: today, code, createdGroupId }
       applyMerge(m)
-      notify(`Named code ${code} as ${label}.`, { label: 'Undo', run: () => revertMerge(m) })
+      record('code', '', holding.id, to, null, 'c:' + m.id)
+      notify(`Named code ${code} as ${label}.`, {
+        label: 'Undo',
+        run: () => {
+          revertMerge(m)
+          record('undo', '', to, holding.id, 'c:' + m.id)
+        },
+      })
       return to
     }
     const prev = codes[code]
@@ -341,9 +478,11 @@ function useAppState() {
       to,
     )
     withCode(code, to)
+    const cid = record('code', '', prev ?? '', to)
     notify(prev ? `Code ${code} now counts as ${label}.` : `Code ${code} saved as ${label}.`, {
       label: 'Undo',
       run: () => {
+        record('undo', '', to, prev ?? '', cid)
         setTxs((ts) => ts.map((t) => ({ ...t, groupId: moved.find((x) => x.id === t.id)?.from ?? t.groupId })))
         withCode(code, prev)
         if (createdGroupId) setGroups((gs) => gs.filter((g) => g.id !== createdGroupId))
@@ -362,7 +501,14 @@ function useAppState() {
     const ids = allTxs.filter((t) => t.groupId === holding.id).map((t) => t.id)
     const m: Merge = { id: 'm' + Date.now(), sourceId: holding.id, targetId: NO_REFERENCE, txIds: ids, date: today, code }
     applyMerge(m)
-    notify(`${code} is not a code. Its payments are in No reference.`, { label: 'Undo', run: () => revertMerge(m) })
+    record('code', '', holding.id, NO_REFERENCE, null, 'c:' + m.id)
+    notify(`${code} is not a code. Its payments are in No reference.`, {
+      label: 'Undo',
+      run: () => {
+        revertMerge(m)
+        record('undo', '', NO_REFERENCE, holding.id, 'c:' + m.id)
+      },
+    })
   }
 
   /** First-run setup: save several codes at once, quietly. Payments with each number move into its group. */
@@ -406,12 +552,16 @@ function useAppState() {
       date: today,
     }
     const removed = allSuggestions.filter((s) => [s.keepId, s.mergeId].includes(sourceId))
+    // Confirming a suggestion is not a manual fix; merging two groups by hand is.
+    const suggested = removed.some((s) => [s.keepId, s.mergeId].includes(targetId))
     applyMerge(m)
+    record(suggested ? 'confirmed' : 'manual', '', sourceId, targetId, null, 'c:' + m.id)
     setSuggestions((ss) => ss.filter((s) => !removed.some((r) => r.id === s.id)))
     notify(`Merged ${groupName(sourceId)} into ${groupName(targetId)}.`, {
       label: 'Undo',
       run: () => {
         revertMerge(m)
+        record('undo', '', targetId, sourceId, 'c:' + m.id)
         setSuggestions((ss) => [...removed, ...ss.filter((s) => !removed.some((r) => r.id === s.id))])
       },
     })
@@ -421,6 +571,7 @@ function useAppState() {
     const m = merges.find((x) => x.id === mergeId)
     if (!m) return
     revertMerge(m)
+    record('undo', '', m.targetId, m.sourceId, 'c:' + m.id)
     notify(`Split ${groupName(m.sourceId)} from ${groupName(m.targetId)}.`, { label: 'Undo', run: () => applyMerge(m) })
   }
 
@@ -454,55 +605,166 @@ function useAppState() {
   }
 
   /**
-   * Takes what the phone's MoMo messages hold (read and parsed in Java) and shows it in place
-   * of the sample data. Both use types are filled, so switching later loses nothing.
+   * Reads, sorts and saves the phone's MoMo messages in Java (StoreModule.scan), then shows what
+   * changed. The first scan replaces the sample data. A later scan only adds what is new: group
+   * names, merges, named codes, moved payments and categories all stay as they are.
    *
-   * The first scan starts clean. A later scan only adds what is new: group names, merges,
-   * named codes, moved payments and categories all stay as they are.
+   * Waits for pending saves first, so Java sorts against the latest edits.
    */
-  const loadMessages = (rows: InboxRow[]): ScanResult => {
-    const first = dataSource !== 'messages'
-    if (first) {
-      seenSms.current = new Set()
-      newestSms.current = 0
+  const scanMessages = async (opts: { since?: number; onProgress?: (read: number, total: number) => void } = {}): Promise<ScanResult> => {
+    if (!canScan) throw new Error('Scanning is off while the developer flows are showing sample data.')
+    if (!(await queue.flush())) throw new Error("Couldn't save. Try again.")
+    const since = opts.since ?? (dataSource === 'messages' ? Math.max(0, newestSms.current - NEW_MESSAGE_OVERLAP_MS) : 0)
+    const stop = queue.track()
+    let res: NativeScanResult
+    let touched = { edited: new Set<string>(), sent: new Set<string>() }
+    try {
+      res = await StoreNative.scan(since, { useType, firstRunCodes, defaultCategories: DEFAULT_CATEGORIES }, opts.onProgress)
+    } finally {
+      touched = stop()
     }
-    const fresh = rows.filter((r) => !seenSms.current.has(r.sms.id))
-    for (const r of rows) {
-      seenSms.current.add(r.sms.id)
-      if (r.sms.date > newestSms.current) newestSms.current = r.sms.date
-    }
-    // Nothing new since the last look: leave every list as it is.
-    if (!first && fresh.length === 0) return { messages: rows.length, newPayments: 0 }
+    newestSms.current = res.newestSms
+    applyScan(res, touched)
+    return { messages: res.messages, newPayments: res.newPayments }
+  }
 
-    const before: ChurchData = first
-      ? emptyChurch(firstRunCodes)
-      : { txs: allTxs, groups: allGroups, merges, suggestions: allSuggestions, unread: allUnread, codes }
-    // Organisations have no built-in pairs (architecture.md, use type).
-    const next = addChurchRows(before, fresh, { builtInPairs: useType !== 'organisation' })
-    setTxs(next.txs)
-    setGroups(next.groups)
-    setMerges(next.merges)
-    setSuggestions(next.suggestions)
-    setUnread(next.unread)
-    setCodes(next.codes)
+  /**
+   * `touched.edited`: rows the user changed or removed during the scan (the screen version wins).
+   * `touched.sent`: rows the queue sent during the scan; they are not marked saved, so the screen
+   * version (with what the scan added) is sent again after Java's write.
+   */
+  const applyScan = (res: NativeScanResult, touched: { edited: Set<string>; sent: Set<string> }) => {
+    const edited = touched.edited
+    const unsent = <T extends { id: string }>(rows: T[]) => rows.filter((r) => !touched.sent.has(r.id))
+    const ch = res.changed
+    const cTxs = (ch.txs ?? []) as Tx[]
+    const cGroups = (ch.groups ?? []) as Group[]
+    const cMerges = (ch.merges ?? []) as Merge[]
+    const cSuggestions = (ch.suggestions ?? []) as Suggestion[]
+    const cUnread = (ch.unread ?? []) as Unread[]
+    const cCodes = (ch.codes ?? []) as { id: string; code: string; groupId: string }[]
+    const cPTxs = (ch.pTxs ?? []) as PTx[]
 
-    // All rows plus what is already shown: a reversal takes its person from the payment it reverses.
-    const mine = toPersonalTxs(rows, first ? [] : personal.allPTxs)
-    const known = new Set(first ? [] : personal.allPTxs.map((t) => t.id))
-    // Count what this use type shows: payments received and cash in for a church, every payment for Personal.
-    const newPayments = useType === 'personal' ? mine.filter((t) => !known.has(t.id)).length : next.added
-    personal.loadPersonalTxs(mine, first)
-
-    if (first) {
+    if (res.first) {
+      const txs = newestFirst([...cTxs])
+      const unread = newestFirst([...cUnread])
+      const categories = (ch.categories ?? []) as Category[]
+      setTxs(txs)
+      setGroups(cGroups)
+      setMerges(cMerges)
+      setSuggestions(cSuggestions)
+      setUnread(unread)
+      setCodes(Object.fromEntries(cCodes.map((c) => [c.code, c.groupId])))
+      setChanges([])
       setSpecials([])
+      personal.applyPersonalScan(cPTxs, true, edited, categories)
+      // Java saved all of these, and cleared the rest.
+      queue.markSaved('church_tx', txs, { replace: true })
+      queue.markSaved('church_group', cGroups, { replace: true })
+      queue.markSaved('merge_record', cMerges, { replace: true })
+      queue.markSaved('suggestion', cSuggestions, { replace: true })
+      queue.markSaved('unread', unread, { replace: true })
+      queue.markSaved('code_entry', cCodes, { replace: true })
+      queue.markSaved('personal_tx', cPTxs, { replace: true })
+      queue.markSaved('category', categories, { replace: true })
+      for (const t of ['special', 'category_rule', 'nickname', 'group_change']) queue.markSaved(t, [], { replace: true })
       setServiceId('w:' + latestWeekday(phoneToday(), weekly.day))
       setTxFilters({ thisService: true, groupId: null, query: '' })
       setSessionDraft(null)
       setDemo('populated')
       setDataSource('messages')
+      return
     }
-    return { messages: rows.length, newPayments }
+
+    // New payments in a group merged on screen while the scan ran follow that merge.
+    const now = latest.current
+    const have = new Set(now.allTxs.map((t) => t.id))
+    const settled = settleNew(cTxs.filter((t) => !have.has(t.id)), now.allGroups, now.merges)
+    const settledTx = new Map(settled.txs.map((t) => [t.id, t]))
+    const grown = new Map(settled.merges.filter((m, i) => m !== now.merges[i]).map((m) => [m.id, m]))
+    // What Java saved is marked saved; the settled versions differ, so the queue saves them.
+    queue.markSaved('church_tx', unsent(cTxs))
+    queue.markSaved('church_group', unsent(cGroups))
+    queue.markSaved('merge_record', unsent(cMerges))
+    queue.markSaved('suggestion', unsent(cSuggestions))
+    queue.markSaved('unread', unsent(cUnread))
+    queue.markSaved('code_entry', unsent(cCodes))
+    queue.markSaved('personal_tx', unsent(cPTxs))
+    if (cTxs.length) setTxs((ts) => newestFirst(mergeScan(ts, cTxs.map((t) => settledTx.get(t.id) ?? t), edited)))
+    if (cGroups.length) setGroups((gs) => mergeScan(gs, cGroups, edited, 'end'))
+    if (cMerges.length || grown.size) setMerges((ms) => mergeScan(ms.map((m) => grown.get(m.id) ?? m), cMerges, edited, 'end'))
+    if (cSuggestions.length) setSuggestions((ss) => mergeScan(ss, cSuggestions, edited, 'end'))
+    if (cUnread.length) setUnread((us) => newestFirst(mergeScan(us, cUnread, edited)))
+    if (cCodes.length) setCodes((c) => ({ ...c, ...Object.fromEntries(cCodes.filter((x) => !edited.has(x.id)).map((x) => [x.code, x.groupId])) }))
+    personal.applyPersonalScan(cPTxs, false, edited)
   }
+
+  /** Puts what was saved on this phone on screen, and decides where the app opens. */
+  const hydrate = (snap: Snapshot) => {
+    const st = snap.settings
+    const get = <T,>(kind: string) => (snap.lists[kind] ?? []) as T[]
+    if (st.useType) setUseType(st.useType as UseType)
+    if (st.themePref) setThemePref(st.themePref as ThemePref)
+    if (st.exportPrefs) setExportPrefs(st.exportPrefs as ExportPrefs)
+    if (st.pExportPrefs) personal.setPExportPrefs(st.pExportPrefs as PExportPrefs)
+    if (st.periodId) personal.setPeriodId(st.periodId as PeriodId)
+    if (st.weekly) setWeekly(st.weekly as Weekly)
+    if (Array.isArray(st.firstRunCodes)) setFirstRunCodes(st.firstRunCodes as CodeName[])
+    const done = st.onboarded === true
+    setOnboarded(done)
+    const messages = st.dataSource === 'messages'
+    if (messages) {
+      const txs = newestFirst(get<Tx>('church_tx'))
+      const unread = newestFirst(get<Unread>('unread'))
+      const codeList = get<{ id: string; code: string; groupId: string }>('code_entry')
+      const nicknames = get<{ id: string; personKey: string; nickname: string }>('nickname')
+      setTxs(txs)
+      setGroups(get<Group>('church_group'))
+      setMerges(get<Merge>('merge_record'))
+      setSuggestions(get<Suggestion>('suggestion'))
+      setUnread(unread)
+      setSpecials(get<Special>('special'))
+      setCodes(Object.fromEntries(codeList.map((c) => [c.code, c.groupId])))
+      setChanges(get<GroupChange>('group_change'))
+      personal.hydratePersonal({
+        pTxs: get<PTx>('personal_tx'),
+        categories: get<Category>('category'),
+        rules: get<CategoryRule>('category_rule'),
+        nicknames: Object.fromEntries(nicknames.map((n) => [n.personKey, n.nickname])),
+      })
+      for (const kind of ['church_group', 'merge_record', 'suggestion', 'special', 'code_entry', 'personal_tx', 'category', 'category_rule', 'nickname', 'group_change']) {
+        queue.markSaved(kind, get<{ id: string }>(kind), { replace: true })
+      }
+      queue.markSaved('church_tx', txs, { replace: true })
+      queue.markSaved('unread', unread, { replace: true })
+      if (typeof st.serviceId === 'string') setServiceId(st.serviceId)
+      newestSms.current = typeof st.newestSms === 'number' ? st.newestSms : 0
+      setDataSource('messages')
+    }
+    if (snap.lock) setLock(snap.lock)
+    // A saved lock always comes first, even when first run was interrupted after it was set.
+    setStack([{ name: 'home' }])
+    setPhase(launchPhase({ onboarded: done, messages, lock: !!snap.lock }))
+  }
+
+  useEffect(() => {
+    if (!StoreNative.available()) return
+    let alive = true
+    StoreNative.load()
+      .then((snap) => alive && hydrate(snap))
+      .catch(() => {
+        // Never write over data that could not be read: run on sample data for this session.
+        if (!alive) return
+        setSampleMode(true)
+        notify("Couldn't load your data. Restart the app to try again.")
+      })
+      .finally(() => alive && setReady(true))
+    return () => {
+      alive = false
+    }
+    // Once, at launch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const resetData = () => {
     const s = seed()
@@ -516,7 +778,7 @@ function useAppState() {
     setCodes(s.codes)
     setDataSource('sample')
     setFirstRunCodes([])
-    seenSms.current = new Set()
+    setChanges([])
     newestSms.current = 0
     setServiceId(DEFAULT_SERVICE)
     setTxFilters({ thisService: true, groupId: null, query: '' })
@@ -524,8 +786,11 @@ function useAppState() {
     personal.resetPersonal()
   }
 
-  const eraseAll = () => {
+  /** Back to a new install, in memory. */
+  const resetAll = () => {
     resetData()
+    setOnboarded(false)
+    memLock.current = null
     setLock(null)
     setUseType('church')
     setCoachStep(null)
@@ -535,17 +800,27 @@ function useAppState() {
     setPhase({ kind: 'onboarding', step: 'welcome' })
   }
 
+  /** The last-resort erase (Settings, or a lost lock and code): the saved data goes too. */
+  const eraseAll = () => {
+    resetAll()
+    if (StoreNative.available() && !sampleMode) StoreNative.eraseAll().catch(() => notify("Couldn't erase. Try again."))
+  }
+
   const enterApp = (tab: Tab = 'home') => {
     setStack([{ name: tab }])
     setPhase({ kind: 'app' })
+    setOnboarded(true)
   }
 
   const jumpFlow = (flow: 1 | 2 | 3 | 4 | 5 | 6) => {
     setSnack(null)
     setCoachStep(null)
-    if (flow === 1) return eraseAll()
+    // The flows run on sample data; saved data is left untouched until the app restarts.
+    setSampleMode(true)
+    if (flow === 1) return resetAll()
     if (flow === 5) {
-      if (!lock) setLock(DEMO_LOCK)
+      setLock(DEMO_LOCK)
+      memLock.current = { secret: DEMO_SECRET, recovery: DEMO_RECOVERY }
       setPhase({ kind: 'locked', step: 'lock' })
       return
     }
@@ -576,8 +851,11 @@ function useAppState() {
     eraseAll,
     today,
     dataSource,
-    loadMessages,
-    newMessagesSince,
+    ready,
+    sampleMode,
+    canScan,
+    scanMessages,
+    changes,
     txs,
     allTxs,
     groups,
@@ -612,7 +890,13 @@ function useAppState() {
     skipUnread,
     addSpecial,
     lock,
-    setLock,
+    saveLock,
+    saveRecovery,
+    setFingerprint,
+    checkLock,
+    checkRecovery,
+    newRecoveryCode,
+    unlock,
     useType,
     setUseType,
     coachStep,

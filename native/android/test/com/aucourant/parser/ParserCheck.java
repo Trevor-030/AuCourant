@@ -52,7 +52,10 @@ public final class ParserCheck {
         ref("code", "1", ReferenceCleaner.Kind.CODE, "1");
         ref("code leading zero", "01", ReferenceCleaner.Kind.CODE, "1");
         ref("code three digits", "105.", ReferenceCleaner.Kind.CODE, "105");
-        ref("four digits stay typed", "1001", ReferenceCleaner.Kind.TYPED, "1001");
+        ref("four digits can be a code", "1001", ReferenceCleaner.Kind.CODE, "1001");
+        ref("six digits can be a code", "002024", ReferenceCleaner.Kind.CODE, "2024");
+        ref("seven digits stay typed", "1234567", ReferenceCleaner.Kind.TYPED, "1234567");
+        ref("phone number stays typed", "0241234567", ReferenceCleaner.Kind.TYPED, "0241234567");
         ref("words win over code", "1 offering", ReferenceCleaner.Kind.TYPED, "1 offering");
     }
 

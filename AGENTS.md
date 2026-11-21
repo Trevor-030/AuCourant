@@ -10,16 +10,18 @@ Android app that sorts MoMo payment SMS: by reference for churches and organisat
 App.tsx                      fonts, providers
 src/AppShell.tsx             screen switcher, bottom nav, Android back button
 src/lib/                     store (state + actions), sample data, formatting, report builders
-                             inbox.ts: parsed messages into payments, groups, suggestions (pure, no React Native)
+                             inbox.ts: shared types, NO_REFERENCE, codeDoubt (the sorting itself is in Java)
+                             persist.ts: save queue to Room, scan merge, manual-fix count (pure, no React Native)
                              personal*.ts, categorise.ts, periods.ts: the Personal use type
 src/screens/                 one file per area (onboarding, home, groups, transactions, review, export, settings, lock, codes)
 src/screens/personal/        Personal views: home, transactions, person, categories, export
 src/ui/                      kit (buttons, rows, fields), overlays (sheet, dialog, snackbar, coach marks), icons
 src/theme/                   colour and type tokens (Midnight Emerald Gold, dark + light), makeStyles
-src/native/                  typed bridge to the Java modules; scan.ts reads and parses the inbox
-native/android/java/...      Java sources: ExportModule, LockModule, SmsModule (nativebridge/), MTN parser registry (parser/)
-native/android/test/...      plain-JDK parser checks (no Android, no JUnit), and ParseDump for the inbox checks
-scripts/                     test-parser.js and test-inbox.js (run the checks with only Node and the JDK)
+src/native/                  typed bridge to the Java modules; store.ts is StoreModule (load, save, scan, lock)
+native/android/java/...      Java sources: ExportModule, LockModule, SmsModule, StoreModule (nativebridge/), MTN parser
+                             registry (parser/), sorter (sorting/, no Android imports), Room storage (store/)
+native/android/test/...      plain-JDK checks (no Android, no JUnit): ParserCheck, SortCheck; ParseDump and SortDump for the inbox checks
+scripts/                     test-parser.js, test-inbox.js (via java-sorter.js) and test-persist.js (only Node and the JDK)
 plugins/with-aucourant-native.js   copies the Java into android/ and registers it on every prebuild; 64-bit (arm64-v8a) only
 assets/                      app icon, adaptive icon layers, splash, favicon (built from assets/brand/svg/app)
 assets/brand/                logo kit: SVG masters and PNG exports. Rules in docs/brand-guidelines.md
@@ -37,7 +39,10 @@ Navigation is a small state machine in `src/lib/store.tsx` (phase: onboarding, l
 - Logo use follows `docs/brand-guidelines.md`: gold "Au" over a thin gold line, Instrument Serif wordmark, no other fonts or effects. Inside the app, use the `Wordmark` component.
 - Copy follows the PRD wording: *service* for Church, *period* or *meeting* for Organisation, *period*, *category*, *money in* and *money out* for Personal or business.
 - The raw SMS in `src/lib/personal-data.ts` and the Java templates use the same wording. Change both together and run `npm run test:parser` and `npm run test:inbox`.
-- `src/lib/inbox.ts` must stay free of React Native imports (type imports are fine) so it runs under plain Node. `ParseDump.java` mirrors the field names of `SmsModule.toMap`: change both together.
+- `src/lib/inbox.ts` and `src/lib/persist.ts` must stay free of React Native imports (type imports are fine) so they run under plain Node. `ParseDump.java` and `SmsModule.parsedOf` mirror the field names of `SmsModule.toMap`: change them together.
+- The `sorting/` package must stay free of Android imports, like `parser/`. It mirrors the TypeScript types field for field (`Model.java`): a field added to `Tx`, `Group`, `Merge` or `PTx` in TypeScript must be added there too, or a scan drops it.
+- The categoriser exists twice: `Categoriser.java` for new payments, `src/lib/categorise.ts` for edits on screen. `npm run test:inbox` checks they agree; change both together.
+- Saved data: every list in the store is saved through `useSaved` (`src/lib/store.tsx`). A new list that must survive a restart needs a `useSaved` line, a kind in `store/Kinds.java`, and a line in `hydrate`. Sample data and the developer flows are never saved.
 - Dates: use `today` from the store, not the `TODAY` constant. `TODAY` is the sample data's date; with real messages `today` is the phone's date.
 - The `parser/` package must stay free of Android imports so it can be tested with only the JDK.
 
@@ -48,21 +53,24 @@ npx expo run:android        # build and install the dev app (emulator or USB pho
 npx expo start              # Metro only, for an already installed dev build
 npx tsc --noEmit            # typecheck
 npm run test:parser         # Java parser checks with only the JDK (uses JAVA_HOME or Android Studio's JBR)
-npm run test:inbox          # sample SMS text -> Java parser -> src/lib/inbox.ts, checked against the sample data
+npm run test:inbox          # sample SMS text -> Java parser -> Java sorter, checked against the sample data
+npm run test:persist        # the save queue, scan merge and manual-fix count (src/lib/persist.ts)
 npx expo-doctor             # config and dependency checks
 npx expo prebuild --clean   # regenerate android/ after changing app.json or the plugin
 ```
 
 Gradle needs JDK 17 or 21. On this machine use Android Studio's: `JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"`.
 
+Windows: the C++ build needs ninja 1.12 or newer for paths over 260 characters (Windows long paths are on). The SDK's CMake 3.22.1 ships ninja 1.10.2; on this machine `cmake/3.22.1/bin/ninja.exe` was replaced with 1.12.1 on 2026-11-21 (the old one is kept as `ninja-1.10.2.exe`).
+
 Expo Go cannot run this app: it has its own Java modules. Use a development build (`npx expo run:android`).
 
 ## State of the app
 
-The app starts on the prototype's sample data. In a development build, once message access is allowed, the scan step reads the phone's MoMo messages, parses them in Java and replaces the sample data with real payments for both use types (`loadMessages` in the store, `src/lib/inbox.ts`). This path is covered by `npm run test:inbox` but has not been run on a phone yet. It is in memory only: nothing is saved, so every launch starts at first run and scans again. Expo Go keeps the sample data. While real payments are on screen the app looks for new messages when it comes back to the front and every 20 seconds (`useNewMessages` in `src/AppShell.tsx`, `src/native/scan.ts`), standing in for the Java receiver.
+The app starts on the prototype's sample data. In a development build, once message access is allowed, the scan step reads, parses, sorts and saves the phone's MoMo messages in Java (`StoreModule.scan`, `store/Scanner.java`, `sorting/`) and replaces the sample data with real payments for both use types (`scanMessages` in the store). Everything is saved in Room (`aucourant.db`): payments, groups, merges, codes, sessions, Personal categories, rules and nicknames, settings, the manual-fix log, and the lock (hashes only). Edits stay in TypeScript and are saved through a queue (`src/lib/persist.ts`); a scan waits for it first. Design: `docs/superpowers/specs/2026-11-21-room-storage-design.md`. Built and checked with `npm run test:*` and a full Gradle build, but not yet run on a phone. Expo Go keeps the sample data. While real payments are on screen the app looks for new messages when it comes back to the front and every 20 seconds (`useNewMessages` in `src/AppShell.tsx`), standing in for the live SMS receiver. The app locks again after 5 minutes in the background.
 
-Also real: the Android SMS permission prompt, report files written and shared by `ExportModule`, PBKDF2 hashing and recovery codes in `LockModule` (not yet wired to the lock screens), and the MTN parser registry with reference cleaner (`SmsModule.parseMessages`; sent, merchant, bill, cash out, airtime and reversal templates are provisional). Still to build: Room storage (so data and settings survive a restart, and grouping moves to Java), the live SMS receiver, biometric unlock.
+Also real: the Android SMS permission prompt, report files written and shared by `ExportModule`, the lock (PIN or password and recovery code hashed with PBKDF2, checked in Java, 5 wrong tries then a 30 second wait that survives a restart), and the MTN parser registry with reference cleaner (`SmsModule.parseMessages`; sent, merchant, bill, cash out, airtime and reversal templates are provisional). Still to build: the live SMS receiver, biometric unlock (the fingerprint button is simulated, so it shows only on sample data).
 
 The use type (Church, Organisation, Personal or business) switches the tabs and screens. Personal has its own sample data and state slice.
 
-In development builds, Settings has a Developer section with the prototype's flows (F1 to F6, church), screen states (loading, empty, error), a motion toggle, and *Parse my inbox* (runs the Java parser over the phone's real MoMo messages, stores nothing).
+In development builds, Settings has a Developer section with the prototype's flows (F1 to F6, church), screen states (loading, empty, error), a motion toggle, and *Parse my inbox* (runs the Java parser over the phone's real MoMo messages, stores nothing). The flows switch the session to sample mode: nothing is saved or scanned, and saved data is untouched until the app restarts.

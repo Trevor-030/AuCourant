@@ -25,7 +25,7 @@ const lib = (name) => require(path.join(root, 'src', 'lib', name + '.ts'))
 const { seedTransactions, SEED_GROUPS, SEED_CODES } = lib('data')
 const { seedPersonalTxs, SEED_RULES } = lib('personal-data')
 const { categoriseAll } = lib('categorise')
-const { addChurchRows, emptyChurch, toPersonalTxs, matchKey, similarNames, titleCase, formatPhone } = lib('inbox')
+const { addChurchRows, emptyChurch, toPersonalTxs, matchKey, similarNames, titleCase, formatPhone, codeDoubt, NO_REFERENCE } = lib('inbox')
 
 // ---- Java parser over raw text ----------------------------------------------------
 
@@ -86,6 +86,11 @@ try {
   check('similar spelling', similarNames('Harvest', 'Havest'), true)
   check('not similar', similarNames('Offering', 'Welfare'), false)
   check('short words are not suggested', similarNames('Dues', 'Due'), false)
+  check('code doubt: a short code is not doubted', codeDoubt('5', [20, 50]), null)
+  check('code doubt: a number equal to the amount paid', codeDoubt('50', [20, 50]), 'amount')
+  check('code doubt: pesewas do not match a whole number', codeDoubt('50', [50.5]), null)
+  check('code doubt: four digits or more', codeDoubt('1001', [20]), 'long')
+  check('code doubt: a long number is long even when it is the amount', codeDoubt('1000', [1000]), 'long')
 
   // ---- Church: the sample service comes back as the same groups -------------------
   const seed = seedTransactions()
@@ -154,6 +159,24 @@ try {
   check('rescan: unread messages are not added twice', addChurchRows(more, newRows, { builtInPairs: true }).unread.length, 2)
   check('rescan: newest payment first', more.txs[0].date, '2026-10-28')
 
+  // Numbers the treasurer must confirm: four digits wait like any code; "not a code" means No reference.
+  const doubtful = addChurchRows(church, rowsOf([extra('1001', '49000000021'), extra('50', '49000000022', 50)]), { builtInPairs: true })
+  check('long number: waits as a code', groupOf(doubtful, '49000000021'), 'code 1001')
+  check('amount as reference: waits as a code', groupOf(doubtful, '49000000022'), 'code 50')
+  const notCode = addChurchRows({ ...church, codes: { ...church.codes, 50: NO_REFERENCE } }, rowsOf([extra('50', '49000000023', 50)]), { builtInPairs: true })
+  check('not a code: later payments go to No reference', groupOf(notCode, '49000000023'), 'no reference')
+
+  // Cash paid in at an agent counts as a church payment, grouped by its reference like any other.
+  const cashIn = (ref, txId, amount) => ({ raw: `Y'ello. Cash In of GHS${amount}.00 recd frm 0275550163 Ref ${ref}. Trxn ${txId} Bal GHS4,360.00. Thank you for using MTN MoMo.`, date: '2026-10-28', time: '11:00' })
+  const moneyOut = { raw: 'Payment made for GHS 80.00 to ABENA SARPONG 0245550127. Current Balance: GHS 10.00. Reference: -. Transaction ID: 49000000011. Fee charged: GHS 0.80. TAX charged: GHS 0.00.', date: '2026-10-28', time: '11:05' }
+  const reversal = { raw: 'Reversal of GHS 80.00 for Transaction ID 49000000011 has been credited to your wallet. Current Balance: GHS 90.00.', date: '2026-10-28', time: '11:10' }
+  const withCash = addChurchRows(church, rowsOf([cashIn('Welfare', '7741-0293-88', 50), cashIn('-', '7741-0293-89', 30), moneyOut, reversal]), { builtInPairs: true })
+  check('cash in: counts as a church payment', withCash.added, 2)
+  check('cash in: grouped by its reference', groupOf(withCash, '7741-0293-88'), 'welfare')
+  check('cash in: no reference', groupOf(withCash, '7741-0293-89'), 'no reference')
+  check('cash in: the number stands in for a missing name', withCash.txs.find((t) => t.txId === '7741-0293-88').sender, '027 555 0163')
+  check('church: money out and reversals are not church payments', withCash.txs.some((t) => t.txId === '49000000011'), false)
+
   // A group the treasurer merged keeps passing new payments on, and Undo can still split them.
   const thanks = church.groups.find((g) => matchKey(g.name) === 'thanksgiving')
   const spaced = church.groups.find((g) => matchKey(g.name) === 'thanks giving')
@@ -205,6 +228,15 @@ try {
   check('personal: same categories as the sample data', tally(got), tally(want))
   check('personal: scanning twice gives one of each', toPersonalTxs([...pRows, ...pRows]).length, pSeed.length)
   check('personal: newest first', mine[0].date >= mine[mine.length - 1].date, true)
+
+  // A later look at only the newest messages still knows the people from before.
+  const reversalRow = pRows.find((r) => r.parsed.type === 'REVERSAL')
+  const cashInRow = pRows.find((r) => r.parsed.type === 'CASH_IN')
+  const earlier = toPersonalTxs(pRows.filter((r) => r !== reversalRow && r !== cashInRow))
+  const later = toPersonalTxs([reversalRow, cashInRow], earlier)
+  check('personal: a late reversal takes its person from an earlier payment', later.find((t) => t.kind === 'reversal').name, pSeed.find((t) => t.kind === 'reversal').name)
+  check('personal: a late cash in takes its name from an earlier payment', later.find((t) => t.kind === 'cash-in').name, pSeed.find((t) => t.kind === 'cash-in').name)
+  check('personal: without the earlier payments the reversal has no person', toPersonalTxs([reversalRow])[0].name, 'Reversal')
 
   // Tax is part of what a payment cost.
   const taxed = rowsOf([{ raw: 'Payment made for GHS 100.00 to KOFI BOATENG 0545550172. Current Balance: GHS 50.00. Reference: -. Transaction ID: 49000000008. Fee charged: GHS 0.75. TAX charged: GHS 1.00.', date: '2026-10-28', time: '10:00' }])

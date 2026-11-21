@@ -24,8 +24,17 @@ const root = path.join(__dirname, '..')
 const lib = (name) => require(path.join(root, 'src', 'lib', name + '.ts'))
 const { seedTransactions, SEED_GROUPS, SEED_CODES } = lib('data')
 const { seedPersonalTxs, SEED_RULES } = lib('personal-data')
-const { categoriseAll } = lib('categorise')
-const { addChurchRows, emptyChurch, toPersonalTxs, matchKey, similarNames, titleCase, formatPhone, codeDoubt, NO_REFERENCE } = lib('inbox')
+const tsCategorise = lib('categorise')
+const { codeDoubt, NO_REFERENCE } = lib('inbox')
+/** Same as the Java match key (Text.matchKey), for comparing group names in these checks. */
+const matchKey = (reference) =>
+  reference
+    .toLowerCase()
+    .replace(/[.,;:!?'"`()[\]{}\-_/\\*&@#+=<>|~^%$]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+// The church sorter runs in Java on the phone, so these checks run the Java code.
+const { addChurchRows, emptyChurch, toPersonalTxs, categoriseAll } = require('./java-sorter')
 
 // ---- Java parser over raw text ----------------------------------------------------
 
@@ -74,18 +83,7 @@ function check(name, actual, expected) {
 
 try {
   // ---- Helpers --------------------------------------------------------------------
-  check('titleCase capitals', titleCase('KOFI BOATENG'), 'Kofi Boateng')
-  check('titleCase hyphen', titleCase('NANA OFORIWAA-BOATEMAA'), 'Nana Oforiwaa-Boatemaa')
-  check('titleCase leaves mixed case', titleCase('Kasoa Fresh Mart'), 'Kasoa Fresh Mart')
-  check('formatPhone local', formatPhone('0241234567'), '024 123 4567')
-  check('formatPhone 233', formatPhone('233241234567'), '024 123 4567')
-  check('formatPhone +233', formatPhone('+233241234567'), '024 123 4567')
-  check('matchKey case and full stop', matchKey('OFFERING.'), 'offering')
-  check('matchKey spaces', matchKey('  Building   fund '), 'building fund')
-  check('similar spacing', similarNames('Thanksgiving', 'Thanks giving'), true)
-  check('similar spelling', similarNames('Harvest', 'Havest'), true)
-  check('not similar', similarNames('Offering', 'Welfare'), false)
-  check('short words are not suggested', similarNames('Dues', 'Due'), false)
+  // Text helpers (titleCase, formatPhone, matchKey, similarNames) are checked in Java by SortCheck (npm run test:parser).
   check('code doubt: a short code is not doubted', codeDoubt('5', [20, 50]), null)
   check('code doubt: a number equal to the amount paid', codeDoubt('50', [20, 50]), 'amount')
   check('code doubt: pesewas do not match a whole number', codeDoubt('50', [50.5]), null)
@@ -241,6 +239,13 @@ try {
   // Tax is part of what a payment cost.
   const taxed = rowsOf([{ raw: 'Payment made for GHS 100.00 to KOFI BOATENG 0545550172. Current Balance: GHS 50.00. Reference: -. Transaction ID: 49000000008. Fee charged: GHS 0.75. TAX charged: GHS 1.00.', date: '2026-10-28', time: '10:00' }])
   check('personal: fee includes tax', toPersonalTxs(taxed)[0].fee, 1.75)
+
+  // The categoriser lives in both languages: Java for new payments, TypeScript for edits on screen.
+  const canonical = (v) => JSON.parse(JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x)))
+  const placed = mine.map((t, i) => (i % 5 === 0 ? { ...t, categoryId: 'food', catSource: 'manual' } : t))
+  check('categoriser: Java and TypeScript agree on the sample', canonical(categoriseAll(pSeed, SEED_RULES)), canonical(tsCategorise.categoriseAll(pSeed, SEED_RULES)))
+  check('categoriser: Java and TypeScript agree on scanned payments', canonical(categoriseAll(placed, SEED_RULES)), canonical(tsCategorise.categoriseAll(placed, SEED_RULES)))
+  check('categoriser: a payment placed by hand is kept', categoriseAll(placed, SEED_RULES)[0].catSource, 'manual')
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true })
 }

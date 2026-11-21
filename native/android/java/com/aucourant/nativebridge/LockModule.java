@@ -88,6 +88,20 @@ public class LockModule extends ReactContextBaseJavaModule {
         promise.resolve(sb.toString());
     }
 
+    /** { hash, salt }, both Base64, for a new secret. Slow on purpose: call off the main thread. */
+    static String[] hash(String secret) throws Exception {
+        byte[] salt = new byte[SALT_BYTES];
+        new SecureRandom().nextBytes(salt);
+        return new String[] {b64(derive(secret, salt)), b64(salt)};
+    }
+
+    /** True when the secret matches the stored hash. Compared in constant time. */
+    static boolean verify(String secret, String hashB64, String saltB64) throws Exception {
+        byte[] salt = Base64.decode(saltB64, Base64.NO_WRAP);
+        byte[] expected = Base64.decode(hashB64, Base64.NO_WRAP);
+        return MessageDigest.isEqual(expected, derive(secret, salt));
+    }
+
     private static byte[] derive(String secret, byte[] salt) throws Exception {
         // Recovery codes are compared without dashes and in upper case.
         KeySpec spec = new PBEKeySpec(secret.toCharArray(), salt, ITERATIONS, KEY_BITS);

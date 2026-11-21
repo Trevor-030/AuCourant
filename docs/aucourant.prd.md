@@ -70,7 +70,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 3. A reference is only what the giver typed. If the Reference field is blank, "-", or filled by the network with the sender's own details, the payment has **no reference**.
 4. It sorts payments into groups by reference (offering, harvest, thanksgiving, welfare, and so on). Payments with no reference go to the **No reference** group. Every payment ends up in a group.
 5. References that differ only by capital letters or punctuation (for example "offering" and "Offering") are one group automatically. A small built-in list of known pairs also joins automatically for the church type, starting with **"Offertory" counted as "Offering"**, and the group always shows what it includes. Any other similar references (for example "Thanksgiving" and "Thanks giving") are **suggested** as merges and the treasurer **confirms** each one.
-6. **Number references:** when a giver types a short number (1 to 3 digits) as the reference, the app looks it up in the church's **code list** (for example 1 is Offering, 2 is Tithe). The list starts empty because every church uses its own numbers. A number that is not on the list lands in its own group (*Code 5*) and is shown in the review queue, where the treasurer names it **once**. The name is remembered, and the number means the same thing in every service. The treasurer can also add or edit codes ahead of time, at first run (an optional step) or in Settings. The app never guesses what a number means.
+6. **Number references:** when a giver types a number (1 to 6 digits) as the reference, the app looks it up in the church's **code list** (for example 1 is Offering, 2 is Tithe). The list starts empty because every church uses its own numbers. A number that is not on the list lands in its own group (*Code 5*) and is shown in the review queue, where the treasurer names it **once**. The name is remembered, and the number means the same thing in every service. The treasurer can also add or edit codes ahead of time, at first run (an optional step) or in Settings. The app never guesses what a number means. When a number may not be a code at all (4 to 6 digits, or the same as the amount the giver paid, like "50" on GHS 50), the app **asks the treasurer if they are sure** before naming it, and offers **Not a code**, which moves its payments to *No reference* (remembered, can be undone).
 7. The treasurer can move any payment to another group with one tap. Moves and merges happen at once and can be **undone** right away from a short message at the bottom of the screen, or later, for merges and named codes, from **Merge history** in Settings. The Undo message stays for about 8 seconds.
 8. The treasurer sees totals per group for a chosen service.
 9. **Services:** a weekly service on a chosen day (default Sunday), plus **special sessions** the treasurer can create at any time. Payments inside a special session count there and not in the weekly service, so nothing is counted twice.
@@ -144,6 +144,12 @@ A second, smaller audience exists: individuals who want to understand their own 
 
 - [x] **First run asks for the church's numbers** before the scan, as an optional skippable step, so fewer payments wait in *Code 5* style groups (founder said yes).
 
+**Resolved 2026-11-21 (founder answers)**
+- [x] **Phones supported:** 64-bit only. The app is built for arm64-v8a; 32-bit phones are not supported.
+- [x] **A number that looks like an amount** ("50" on a GHS 50 payment): ask the treasurer if they are sure it is a code. If not, its payments go to *No reference*.
+- [x] **Numbers with 4 or more digits** (1001): can be a code, but ask the treasurer if they are sure. 7 or more digits stay typed text (phone and account numbers, Claude's choice).
+- [x] **Telecel and AirtelTigo:** keep the MTN template; what it cannot read goes to *Not read* (founder confirmed).
+
 **Still open**
 - [ ] None at the moment. See Risks below.
 
@@ -151,7 +157,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 
 - **Messy references:** real references can be messier than the 4 samples. The 0 manual fixes target is untested on messy data until the pilot.
 - **Other networks:** Telecel and AirtelTigo may word their messages differently, so many could land in *Not read* until real samples exist.
-- **Numbers that are not codes:** a giver might type an amount like "50" as the reference, or a number with 4 or more digits. Today the first is read as a code and the second as typed text. Real samples will show if this is a problem.
+- **Numbers that are not codes:** a giver might type an amount like "50" as the reference, or a long number. The app asks the treasurer before treating these as codes, but each one is still a question to answer. Real samples will show how often it happens.
 
 ## 11. Personal or business
 

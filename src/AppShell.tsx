@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Animated, BackHandler, Easing, Pressable, View } from 'react-native'
+import { Animated, AppState, BackHandler, Easing, Pressable, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { useApp, type OnbStep, type Route, type Tab } from './lib/store'
 import { makeRecoveryCode } from './lib/data'
 import { plural } from './lib/format'
+import { SmsNative } from './native'
+import { readMessages } from './native/scan'
 import { DURATION, makeStyles, useTheme } from './theme'
 import { T } from './ui/kit'
 import { ExportIcon, HouseIcon, ReceiptIcon, StackIcon, TagIcon, type Icon } from './ui/icons'
@@ -264,6 +266,53 @@ function useHardwareBack() {
   }, [])
 }
 
+const NEW_MESSAGES_EVERY_MS = 20000
+
+/**
+ * While real payments are on screen, looks for new MoMo messages when the app comes back to the
+ * front and every 20 seconds while it stays open, so totals keep up during a service. New
+ * payments are added quietly; nothing else changes. This stands in for the Java SMS receiver,
+ * which arrives with storage.
+ */
+function useNewMessages() {
+  const app = useApp()
+  const ref = useRef(app)
+  ref.current = app
+  const on = app.dataSource === 'messages' && app.phase.kind === 'app'
+  useEffect(() => {
+    if (!on || !SmsNative.canReadMessages()) return
+    let alive = true
+    let busy = false
+    // The Scan messages again screen does its own reading.
+    const rescanning = () => ref.current.route.name === 'rescan'
+    const check = async () => {
+      if (busy || AppState.currentState !== 'active' || rescanning()) return
+      busy = true
+      try {
+        if (!(await SmsNative.hasPermission())) return
+        const rows = await readMessages(ref.current.newMessagesSince(), { alive: () => alive })
+        if (!rows || rows.length === 0 || rescanning()) return
+        const { newPayments } = ref.current.loadMessages(rows)
+        // Never replace a message that is offering Undo.
+        if (newPayments > 0 && !ref.current.snack) ref.current.notify(`${plural(newPayments, 'new payment')} added.`)
+      } catch {
+        // A missed check costs nothing: the next one, or Scan messages again, picks the payment up.
+      } finally {
+        busy = false
+      }
+    }
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') check()
+    })
+    const timer = setInterval(check, NEW_MESSAGES_EVERY_MS)
+    return () => {
+      alive = false
+      sub.remove()
+      clearInterval(timer)
+    }
+  }, [on])
+}
+
 /** 8px rise plus fade when the screen changes. Reduced motion: 100ms fade. */
 function Transition({ id, children }: { id: string; children: ReactNode }) {
   const { reduced } = useTheme()
@@ -282,6 +331,7 @@ export function AppShell() {
   const insets = useSafeAreaInsets()
   const { phase, route, stack } = useApp()
   useHardwareBack()
+  useNewMessages()
   const inApp = phase.kind === 'app'
   const showNav = inApp && NAV_ROUTES.includes(route.name)
   const key = phase.kind === 'app' ? `app:${stack.length}:${route.name}:${'id' in route ? route.id : ''}` : `${phase.kind}:${phase.step}`

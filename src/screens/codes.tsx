@@ -6,13 +6,14 @@ import { useTheme } from '../theme'
 import { AppBar, Button, Divided, EmptyState, RadioRow, Row, SectionLabel, Surface, T, TextField } from '../ui/kit'
 import { CaretRightIcon, HashIcon, PlusIcon } from '../ui/icons'
 import { Body } from '../ui/layout'
-import { Sheet } from '../ui/overlays'
+import { Dialog, Sheet } from '../ui/overlays'
 
 export type CodeSheetState = { mode: 'name' | 'edit'; code: string } | { mode: 'add' } | null
 
 /** Name, edit or add a number code. Field plus a short list of existing groups. */
 export function CodeSheet({ state, onClose, onSaved }: { state: CodeSheetState; onClose: () => void; onSaved?: (groupId: string) => void }) {
-  const { groups, codes, pendingCodes, groupName, assignCode, useType } = useApp()
+  const { groups, codes, pendingCodes, groupName, assignCode, notACode, useType } = useApp()
+  const [sure, setSure] = useState(false)
   const [kept, setKept] = useState<Exclude<CodeSheetState, null>>({ mode: 'add' })
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
@@ -37,26 +38,33 @@ export function CodeSheet({ state, onClose, onSaved }: { state: CodeSheetState; 
   const checkCode = (v: string) =>
     !v.trim()
       ? 'Enter the number givers type, like 4.'
-      : !/^\d{1,3}$/.test(v.trim())
+      : !/^\d{1,6}$/.test(v.trim())
         ? 'Use numbers only, like 4.'
         : listed(v.trim())
           ? 'This number already has a group. Edit it from the list.'
           : null
   const checkName = (v: string) => (!v.trim() ? 'Enter a group name or pick one from the list.' : /^code \d+$/i.test(v.trim()) ? 'Choose a real group name, like Welfare.' : null)
 
-  const save = () => {
+  const pending = s.mode === 'name' ? pendingCodes.find((p) => p.code === s.code) : null
+
+  const save = (confirmed = false) => {
     const ce = s.mode === 'add' ? checkCode(code) : null
     const ne = checkName(name)
     setCodeErr(ce)
     setNameErr(ne)
     if (ce || ne) return
+    // A number that may not be a code ("50" on a GHS 50 payment, or 1001): ask first.
+    if (pending?.doubt && !confirmed) {
+      setSure(true)
+      return
+    }
+    setSure(false)
     const to = assignCode(code.trim(), name)
     onClose()
     if (to) onSaved?.(to)
   }
 
   const title = s.mode === 'add' ? 'Add a code' : s.mode === 'name' ? `Name code ${s.code}` : `Code ${s.code}`
-  const pending = s.mode === 'name' ? pendingCodes.find((p) => p.code === s.code) : null
   const org = useType === 'organisation' ? 'group' : 'church'
 
   return (
@@ -65,9 +73,23 @@ export function CodeSheet({ state, onClose, onSaved }: { state: CodeSheetState; 
       onClose={onClose}
       title={title}
       footer={
-        <Button full onPress={save}>
-          {s.mode === 'add' ? 'Save code' : 'Save name'}
-        </Button>
+        <View style={{ gap: 8 }}>
+          <Button full onPress={() => save()}>
+            {s.mode === 'add' ? 'Save code' : 'Save name'}
+          </Button>
+          {pending?.doubt && (
+            <Button
+              full
+              variant="text"
+              onPress={() => {
+                notACode(pending.code)
+                onClose()
+              }}
+            >
+              Not a code
+            </Button>
+          )}
+        </View>
       }
     >
       <T v="sec" tone="fg2">
@@ -77,6 +99,13 @@ export function CodeSheet({ state, onClose, onSaved }: { state: CodeSheetState; 
             ? 'Changing the group moves every payment with this code.'
             : `Say what this number means for your ${org}.`}
       </T>
+      {pending?.doubt && (
+        <T v="sec" tone="fg2" style={{ marginTop: 8 }}>
+          {pending.doubt === 'amount'
+            ? `Some givers paid ${money(Number(pending.code))}, so ${pending.code} may be the amount they typed, not a code.`
+            : `${pending.code} is a long number. It may be an ID or account number, not a code.`}
+        </T>
+      )}
       <View style={{ marginTop: 16, gap: 16 }}>
         <TextField
           label="Code"
@@ -84,7 +113,7 @@ export function CodeSheet({ state, onClose, onSaved }: { state: CodeSheetState; 
           onChange={setCode}
           readOnly={s.mode !== 'add'}
           keyboardType="number-pad"
-          maxLength={3}
+          maxLength={6}
           placeholder={s.mode === 'add' ? '4' : undefined}
           error={codeErr}
           onFocus={() => setCodeErr(null)}
@@ -98,7 +127,7 @@ export function CodeSheet({ state, onClose, onSaved }: { state: CodeSheetState; 
           error={nameErr}
           onFocus={() => setNameErr(null)}
           onBlur={() => name && setNameErr(checkName(name))}
-          onSubmitEditing={save}
+          onSubmitEditing={() => save()}
           returnKeyType="done"
           helper="Type a new name, or pick a group below."
           autoComplete="off"
@@ -124,6 +153,14 @@ export function CodeSheet({ state, onClose, onSaved }: { state: CodeSheetState; 
           </View>
         </Surface>
       </View>
+      <Dialog
+        open={sure}
+        onCancel={() => setSure(false)}
+        title={`Is ${s.mode === 'add' ? code : s.code} really a code?`}
+        body={`Every payment with ${s.mode === 'add' ? code : s.code} as the reference will count as ${name.trim()}, in every ${useType === 'church' ? 'service' : 'period'}.`}
+        confirmLabel="Yes, it's a code"
+        onConfirm={() => save(true)}
+      />
     </Sheet>
   )
 }

@@ -7,7 +7,7 @@ import { Body, Footer } from '../ui/layout'
 
 type R = { id: number; code: string; name: string; codeErr: string | null; nameErr: string | null }
 
-const BAD_CODE = 'Use a number with 1 to 3 digits.'
+const BAD_CODE = 'Use a number with 1 to 6 digits.'
 const DUP_CODE = 'This number is already on the list.'
 const NO_NAME = 'Enter a group name for this number.'
 const NOTHING = 'Add a number and a group name, or skip for now.'
@@ -18,7 +18,7 @@ const blank = (): R => ({ id: nextId++, code: '', name: '', codeErr: null, nameE
 function codeError(rows: R[], r: R) {
   const c = r.code.trim()
   if (!c) return r.name.trim() ? BAD_CODE : null
-  if (!/^\d{1,3}$/.test(c)) return BAD_CODE
+  if (!/^\d{1,6}$/.test(c)) return BAD_CODE
   const first = rows.find((x) => x.code.trim() === c)
   return first && first.id !== r.id ? DUP_CODE : null
 }
@@ -69,7 +69,7 @@ export function RefNumbersStep({ onBack, onDone }: { onBack: () => void; onDone:
                 label="Number"
                 placeholder="1"
                 keyboardType="number-pad"
-                maxLength={3}
+                maxLength={6}
                 autoComplete="off"
                 value={r.code}
                 error={r.codeErr}

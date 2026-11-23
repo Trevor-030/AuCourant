@@ -21,6 +21,7 @@ public class AuCourantPackage implements ReactPackage {
     public List<NativeModule> createNativeModules(@NonNull ReactApplicationContext context) {
         return Arrays.<NativeModule>asList(
                 new ExportModule(context),
+                new FingerprintModule(context),
                 new LockModule(context),
                 new SmsModule(context),
                 new StoreModule(context)

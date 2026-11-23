@@ -9,7 +9,7 @@ const os = require('os')
 const path = require('path')
 
 const root = path.join(__dirname, '..')
-const candidates = [process.env.JAVA_HOME, 'C:\Program Files\Android\Android Studio\jbr'].filter(Boolean)
+const candidates = [process.env.JAVA_HOME, 'C:\\Program Files\\Android\\Android Studio\\jbr'].filter(Boolean)
 const home = candidates.find((h) => fs.existsSync(path.join(h, 'bin')))
 const bin = (tool) => (home ? path.join(home, 'bin', tool) : tool)
 const javaFiles = (dir) =>

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Pressable, View } from 'react-native'
+import { AppState, Pressable, View } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { useApp, type LockType } from '../lib/store'
+import type { FingerprintResult } from '../native'
 import { StoreNative } from '../native/store'
 import { RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, AppIcon, Button, InlineError, Radio, T, TextField, Wordmark } from '../ui/kit'
@@ -10,11 +11,15 @@ import { Body, Fill, Footer } from '../ui/layout'
 import { Keypad, PasswordField, PinDots } from '../ui/lock'
 import { Dialog } from '../ui/overlays'
 
-/*
- * Prototype note: the lock still compares plain values held in memory, like the Figma
- * prototype. The Java LockModule (PBKDF2 + SecureRandom recovery code) is ready in
- * src/native and replaces this when storage lands.
- */
+/** What to tell the user when fingerprint did not work. Nothing when they closed the prompt. */
+export const FINGERPRINT_SAYS: Record<FingerprintResult, string | null> = {
+  ok: null,
+  cancelled: null,
+  locked: 'Too many tries with the fingerprint. Use your PIN or password.',
+  none: "Add a fingerprint in your phone's settings first.",
+  changed: 'The fingerprints on this phone changed. Use your PIN or password, then turn fingerprint on again in Settings.',
+  unavailable: "Fingerprint isn't working on this phone now. Use your PIN or password.",
+}
 
 const TYPES: { id: LockType; label: string }[] = [
   { id: 'pin4', label: '4-digit PIN' },
@@ -251,6 +256,9 @@ export function FingerprintStep({ onTurnOn, onSkip }: { onTurnOn: () => void; on
         <T tone="fg2" style={{ marginTop: 8, maxWidth: 280, textAlign: 'center' }}>
           Unlock with your fingerprint. Your PIN or password still works.
         </T>
+        <T v="meta" tone="fg3" style={{ marginTop: 12, maxWidth: 280, textAlign: 'center' }}>
+          Anyone whose fingerprint is saved on this phone can unlock AuCourant. If a fingerprint is added later, AuCourant asks for your PIN or password again.
+        </T>
       </Fill>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Button variant="text" onPress={onSkip}>
@@ -281,14 +289,34 @@ function useCooldown() {
   return { left, start }
 }
 
-const TOO_MANY = 'Too many tries. Wait 30 seconds, then try again.'
+/** Picks up a wait the app was closed in, so it shows the time that is really left. */
+function useSavedWait(start: (seconds: number) => void, onWait: () => void) {
+  const { lockWait } = useApp()
+  useEffect(() => {
+    let alive = true
+    lockWait().then((seconds) => {
+      if (!alive || seconds <= 0) return
+      start(seconds)
+      onWait()
+    })
+    return () => {
+      alive = false
+    }
+    // Once, when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+}
+
+/** The seconds left are shown under it. */
+const TOO_MANY = 'Too many tries. Wait, then try again.'
 
 export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => void; onForgot: () => void; onBack?: () => void }) {
   const s = useStyles()
   const { c } = useTheme()
-  const { lock, checkLock, sampleMode } = useApp()
-  // Fingerprint is simulated until AndroidX Biometric is added, so it is offered only on sample data.
-  const canUseFingerprint = !!lock?.fingerprint && (sampleMode || !StoreNative.available())
+  const { lock, checkLock, checkFingerprint, sampleMode } = useApp()
+  // Only to open the app. Checking the lock before changing it always needs the PIN or password,
+  // since on a shared phone others may have their fingerprint saved.
+  const canUseFingerprint = !!lock?.fingerprint && !onBack
   const type = lock?.type ?? 'pin4'
   const isPin = type !== 'password'
   const len = type === 'pin6' ? 6 : 4
@@ -296,19 +324,32 @@ export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => v
   const [error, setError] = useState<string | null>(null)
   const [tries, setTries] = useState(0)
   const [scanning, setScanning] = useState(false)
+  const [checking, setChecking] = useState(false)
   const cool = useCooldown()
   const blocked = cool.left > 0
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      clearTimeout(timer.current)
+    }
+  }, [])
 
+  useSavedWait(cool.start, () => setError(TOO_MANY))
   useEffect(() => {
     if (!blocked && error === TOO_MANY) setError(null)
   }, [blocked, error])
 
   const check = async (value: string) => {
-    if (!lock) return
+    if (!lock || checking) return
+    setChecking(true)
     // Checked in Java against the saved hash; wrong tries are counted there too, across restarts.
+    // Slow on purpose, so the keypad waits for the answer.
     const r = await checkLock(value).catch(() => ({ ok: false, waitSeconds: 0 }))
+    if (!alive.current) return
+    setChecking(false)
     if (r.ok) return onSuccess()
     const t = tries + 1
     setEntry('')
@@ -322,20 +363,29 @@ export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => v
   }
 
   const digit = (d: string) => {
-    if (blocked || entry.length >= len) return
+    if (blocked || checking || entry.length >= len) return
     const n = entry + d
     setEntry(n)
     if (n.length === len) timer.current = setTimeout(() => check(n), 150)
   }
 
-  // Fingerprint is simulated until the AndroidX Biometric module is added (architecture spike 5).
-  const fingerprint = () => {
+  const fingerprint = async () => {
+    if (scanning) return
     setScanning(true)
-    timer.current = setTimeout(() => {
-      setScanning(false)
-      onSuccess()
-    }, 700)
+    const r = await checkFingerprint()
+    // The PIN may have opened the app meanwhile.
+    if (!alive.current) return
+    setScanning(false)
+    if (r === 'ok') return onSuccess()
+    const says = r === 'none' ? FINGERPRINT_SAYS.changed : FINGERPRINT_SAYS[r]
+    if (says) setError(says)
   }
+  // Asked for once when the lock screen opens (not on sample data, where it is simulated and would
+  // open the app by itself). Closing the prompt leaves the PIN or password and the button.
+  useEffect(() => {
+    if (canUseFingerprint && !sampleMode && StoreNative.available() && AppState.currentState === 'active') void fingerprint()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>
@@ -370,9 +420,9 @@ export function LockScreen({ onSuccess, onForgot, onBack }: { onSuccess: () => v
       </Fill>
       <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 4 }}>
         {isPin ? (
-          <Keypad onDigit={digit} onBackspace={() => setEntry((e) => e.slice(0, -1))} disabled={blocked} />
+          <Keypad onDigit={digit} onBackspace={() => setEntry((e) => e.slice(0, -1))} disabled={blocked || checking} />
         ) : (
-          <Button full onPress={() => !blocked && check(entry)}>
+          <Button full loading={checking} onPress={() => !blocked && check(entry)}>
             Unlock app
           </Button>
         )}
@@ -402,6 +452,10 @@ export function ResetLock({ onBack, onReset }: { onBack: () => void; onReset: ()
   const [erase, setErase] = useState(false)
   const cool = useCooldown()
   const blocked = cool.left > 0
+  useSavedWait(cool.start, () => setError(TOO_MANY))
+  useEffect(() => {
+    if (!blocked && error === TOO_MANY) setError(null)
+  }, [blocked, error])
 
   const submit = async () => {
     if (blocked) return setError(TOO_MANY)

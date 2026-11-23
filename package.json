@@ -32,7 +32,8 @@
     "web": "expo start --web",
     "test:parser": "node scripts/test-parser.js",
     "test:inbox": "node scripts/test-inbox.js",
-    "test:persist": "node scripts/test-persist.js"
+    "test:persist": "node scripts/test-persist.js",
+    "test:report": "node scripts/test-report.js"
   },
   "private": true
 }

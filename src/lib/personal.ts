@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { categoriseAll } from './categorise'
 import { plural } from './format'
 import { mergeScan } from './persist'
 import { periodInfo, type PeriodId } from './periods'
+import type { ReportFormat } from './report'
 import { DEFAULT_CATEGORIES, SEED_RULES, seedPersonalTxs, type Category, type CategoryRule, type Direction, type PTx } from './personal-data'
 import type { Snack } from './store'
 
@@ -26,7 +27,7 @@ export const P_EXPORT_FIELDS = ['Date', 'Time', 'Direction', 'Type', 'Amount', '
 export type PExportField = (typeof P_EXPORT_FIELDS)[number]
 /** Left out when "Hide names and numbers" is on. */
 export const P_NAME_FIELDS: PExportField[] = ['Person', 'Number']
-export type PExportPrefs = { format: 'pdf' | 'csv'; hideNames: boolean; fields: PExportField[] }
+export type PExportPrefs = { format: ReportFormat; hideNames: boolean; fields: PExportField[] }
 const DEFAULT_PEXPORT: PExportPrefs = { format: 'pdf', hideNames: false, fields: [...P_EXPORT_FIELDS] }
 
 export type Person = { key: string; name: string; phone: string | null; nickname: string | null }
@@ -54,6 +55,9 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   const [initial] = useState(seed)
   const [allPTxs, setPTxs] = useState<PTx[]>(initial.txs)
   const [rules, setRules] = useState<CategoryRule[]>(initial.rules)
+  /** The latest rules, for a scan that started before the last change to them. */
+  const latestRules = useRef(rules)
+  latestRules.current = rules
   const [allCategories, setCategories] = useState<Category[]>(initial.categories)
   const [nicknames, setNicknames] = useState<Record<string, string>>({})
   // Remembered between visits (architecture-personal.md, Settings).
@@ -215,7 +219,8 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   /**
    * Payments a scan read and categorised in Java. The first scan replaces the sample data and its
    * made-up rules. Later scans only add or update payments, and a payment the user changed while
-   * the scan ran keeps the user's version.
+   * the scan ran keeps the user's version. Java read the rules when the scan started, so they run
+   * once more here in case one was added since.
    */
   const applyPersonalScan = (read: PTx[], first: boolean, touched: Set<string>, categories?: Category[]) => {
     if (first) {
@@ -227,7 +232,8 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
       setPTxs(newestFirst([...read]))
       return
     }
-    if (read.length) setPTxs((ts) => newestFirst(mergeScan(ts, read, touched)))
+    const placed = categoriseAll(read, latestRules.current)
+    if (placed.length) setPTxs((ts) => newestFirst(mergeScan(ts, placed, touched)))
   }
 
   const resetPersonal = () => {

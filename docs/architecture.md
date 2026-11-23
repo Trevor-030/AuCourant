@@ -82,9 +82,9 @@ The original field is always stored untouched next to the cleaned value, so a wr
 | Parsing | Java regex, one parser class per message type | ML (overkill, not explainable) |
 | Similarity | Hand-written normalization plus Levenshtein or Jaro-Winkler | Apache Commons Text (free, adds a dependency) |
 | PDF | Android built-in `PdfDocument` | third-party PDF library |
-| Excel | **CSV first** (opens in Excel, zero dependency), then real `.xlsx` after a spike | Apache POI (free but heavy on Android) |
+| Excel | **Hand-written `.xlsx`** (`src/lib/xlsx.ts`, no dependency), next to CSV | Apache POI (free but heavy on Android) |
 | PIN or password | One salted hash from the JDK (PBKDF2), never stored in plain form. Same code for 4-digit PIN, 6-digit PIN and password (password at least 6 characters) | none needed |
-| Fingerprint | AndroidX Biometric (free), the PIN or password always works as fallback. Check the library's current status when building | lock only |
+| Fingerprint | AndroidX Biometric 1.1.0 (free, newest stable on 2026-11-22), the PIN or password always works as fallback | lock only |
 | Distribution | APK on GitHub Releases or direct file share | Play Store ($25 fee and blocked by SMS policy) |
 | Design | Figma free tier | none needed |
 
@@ -129,8 +129,9 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 
 - **More real SMS samples** when available: Telecel, AirtelTigo, messy typed references, and **a payment with a number as the reference**. The MVP supports **MTN only**, built from the samples already collected.
 - A backup file for groups, merges, reference codes and sessions, so the last-resort erase costs less. Deferred, not in the MVP.
-- **Storage is built (2026-11-21)**, design in `docs/superpowers/specs/2026-11-21-room-storage-design.md`. Room holds every list and setting; the grouping rules above run in Java (`native/android/java/com/aucourant/sorting`), and a scan reads, sorts and saves in one transaction. Edits stay in TypeScript and are saved through a queue. The lock is wired to hashes in Room. Still to build: the live SMS receiver (it can reuse `Scanner` and the sorter), fingerprint through AndroidX Biometric.
-- Not yet run on a real phone. The sorter is checked by `npm run test:inbox`, which pushes the sample SMS text through the Java parser and the Java sorter and expects the sample groups back. Room and the bridge only run on a phone (checklist in `docs/superpowers/plans/2026-11-21-room-storage.md`, Task 9).
+- **Storage is built (2026-11-21)**, design in `docs/superpowers/specs/2026-11-21-room-storage-design.md`. Room holds every list and setting; the grouping rules above run in Java (`native/android/java/com/aucourant/sorting`), and a scan reads, sorts and saves in one transaction. Edits stay in TypeScript and are saved through a queue. The lock is wired to hashes in Room.
+- **Crash on a real phone, cause not found:** the first run (EAS preview APK, 2026-11-22) closed after the *Scan complete* screen. The sorter is checked by `npm run test:inbox`, which pushes the sample SMS text through the Java parser and the Java sorter and expects the sample groups back. Room and the bridge only run on a phone (checklist in `docs/superpowers/plans/2026-11-21-room-storage.md`, Task 9).
+- **Still to check on a phone** (built 2026-11-23): a payment SMS shows within a few seconds with the app open; one that arrives with the app closed is there on opening, once; fingerprint opens the app, and adding a fingerprint to the phone turns it off; the `.xlsx` opens in the phone's spreadsheet app.
 - Release builds should drop the INTERNET permission (development builds need it to load JavaScript from the computer).
 
 ## Spikes & experiments
@@ -164,6 +165,7 @@ Question:      Is real .xlsx worth it, or is CSV enough?
 Spike:         Ship CSV first, ask 2 treasurers whether it opens fine in Excel, over the pilot
 Decision rule: stay with CSV if they are happy; add .xlsx only if they ask
 ```
+Answered (founder, 2026-11-22): build `.xlsx` now. It costs no dependency, keeps long transaction IDs whole, and never runs a reference such as "=1+1" as a formula. CSV stays as a choice.
 
 **Spike 5: Fingerprint and lock on cheap phones**
 ```
@@ -201,7 +203,9 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 - **Similarity for merge suggestions:** names are compared without spaces or punctuation. Identical after that ("Thanks giving"), or at least 80% alike by edit distance with 4 or more letters ("Havest"), is suggested. Tune with real references (spike 3).
 - **A second scan only adds.** Payments already shown are skipped by transaction ID, a message the treasurer skipped is not listed again, and a pair kept separate is not suggested again. New payments with a merged or renamed group's wording follow that group.
 - **Messages with a known type but no amount** go to *Not read*, like messages no template matches.
-- **New messages while the app is open:** until the Java receiver exists, the app checks the inbox when it returns to the front and every 20 seconds, reading only messages newer than the last one seen (with a 10 minute overlap). It adds new payments and shows a short message; it never replaces a message offering Undo.
+- **New messages:** `SmsReceiver` (Java) hears about each SMS from a MoMo sender and waits up to 4 seconds for it to reach the inbox, so it has the same id as in a scan. With the app open it tells the screens, which scan it in, because they hold the edits. With the app closed it reads, sorts and saves in Java; nothing is read before the user's first scan. The app also checks on opening, when it returns to the front, and once a minute, reading only messages newer than the last one seen (with a 10 minute overlap). It adds new payments and shows a short message; it never replaces a message offering Undo. No notification is shown: payments on a shared phone stay behind the lock.
+- **Fingerprint on a shared phone:** anyone who knows the phone's screen lock can add a fingerprint, so unlocking is tied to an Android Keystore key that a new fingerprint cancels. The app then asks for the PIN or password and turns fingerprint off. Fingerprint only opens the app; changing the lock or the recovery code needs the PIN or password. The setup step says that every fingerprint saved on the phone works.
+- **The wrong-try wait counts from the phone's start, not its clock,** so changing the time does not skip it. A restart of the phone takes about as long as the wait, so it ends one.
 - **64-bit phones only** (founder, 2026-11-21). The config plugin sets `reactNativeArchitectures=arm64-v8a`, so the APK has no 32-bit code and builds faster. x86_64 (emulators only) is left out; add it in `plugins/with-aucourant-native.js` to test on an emulator. The oldest Android version is Expo SDK 58's default.
 - **Saved lists are JSON rows in one Room table** (`record`: kind, id, position, json) plus a typed `lock_record`. Every list is loaded whole at launch, so no per-list columns are needed, and a field added in TypeScript needs no migration. Payments are sorted by date on load; small lists keep their order by position.
 - **The first real scan clears the sample data,** including the sample special session and code names. Numbers named at first run are kept.

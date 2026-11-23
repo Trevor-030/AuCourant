@@ -9,12 +9,12 @@ import { AppBar, Button, Divided, ErrorBox, LinkText, LogoMark, Row, Surface, T,
 import { ChatCircleDotsIcon, ChatSlashIcon, CheckCircleIcon, DeviceMobileIcon, LockSimpleIcon, ShieldCheckIcon, type Icon } from '../ui/icons'
 import { BrandGradient, EmeraldGlow, Fill } from '../ui/layout'
 import { Sheet } from '../ui/overlays'
-import { FingerprintStep, LockSetup, RecoveryCode } from './lock'
+import { FINGERPRINT_SAYS, FingerprintStep, LockSetup, RecoveryCode } from './lock'
 import { RefNumbersStep } from './refnumbers'
 import { UseTypeStep } from './usetype'
 
 export function Onboarding() {
-  const { phase, setPhase, saveLock, setFingerprint, newRecoveryCode, notify, enterApp, setCoachStep, useType } = useApp()
+  const { phase, setPhase, saveLock, setFingerprint, fingerprintStatus, newRecoveryCode, notify, enterApp, setCoachStep, useType } = useApp()
   /** Shown once on the next step; only its hash is kept. */
   const [recovery, setRecovery] = useState('')
   if (phase.kind !== 'onboarding') return null
@@ -56,13 +56,19 @@ export function Onboarding() {
         />
       )
     case 'recovery':
-      return <RecoveryCode code={recovery} onDone={() => go('fingerprint')} />
+      // Phones without a fingerprint reader skip that step.
+      return <RecoveryCode code={recovery} onDone={() => fingerprintStatus().then((st) => (st === 'unavailable' ? finish() : go('fingerprint')))} />
     case 'fingerprint':
       return (
         <FingerprintStep
           onTurnOn={() => {
-            setFingerprint(true).catch(() => notify('Could not save the lock. Try again.'))
-            finish()
+            setFingerprint(true)
+              .then((r) => {
+                if (r === 'ok') return finish()
+                const says = FINGERPRINT_SAYS[r]
+                if (says) notify(says)
+              })
+              .catch(() => notify('Could not turn on fingerprint. Try again.'))
           }}
           onSkip={finish}
         />

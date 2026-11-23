@@ -4,6 +4,7 @@ import { useApp } from '../../lib/store'
 import { P_EXPORT_FIELDS, P_NAME_FIELDS, totalsOf, type PExportField } from '../../lib/personal'
 import { money, plural } from '../../lib/format'
 import { fileBase, tableCsv, tablePdf } from '../../lib/report'
+import { tableXlsx } from '../../lib/xlsx'
 import { personalTable } from '../../lib/report-personal'
 import { ExportNative, NativeMissingError, type ReportFile } from '../../native'
 import { RADIUS, makeStyles, useTheme } from '../../theme'
@@ -48,7 +49,8 @@ export function PersonalExport() {
       const ctx = { title: period.title, dateLabel: period.label, txs: list, fields, categoryName, personName }
       const table = personalTable(ctx)
       const name = `${fileBase(ctx)}.${p.format}`
-      setFile(await ExportNative.write(name, p.format === 'pdf' ? tablePdf(table) : tableCsv(table), p.format))
+      const content = p.format === 'pdf' ? tablePdf(table) : p.format === 'xlsx' ? tableXlsx(table) : tableCsv(table)
+      setFile(await ExportNative.write(name, content, p.format))
       setStatus('done')
     } catch (e) {
       setErrorText(
@@ -140,7 +142,8 @@ export function PersonalExport() {
               <View accessibilityRole="radiogroup" accessibilityLabel="Format">
                 <Divided>
                   <RadioRow checked={p.format === 'pdf'} onSelect={() => set({ format: 'pdf' })} label="PDF" sub="Ready to print or share" />
-                  <RadioRow checked={p.format === 'csv'} onSelect={() => set({ format: 'csv' })} label="Excel (CSV)" sub="Opens in Excel or Google Sheets" />
+                  <RadioRow checked={p.format === 'xlsx'} onSelect={() => set({ format: 'xlsx' })} label="Excel" sub="Opens in Excel or Google Sheets, with totals" />
+                  <RadioRow checked={p.format === 'csv'} onSelect={() => set({ format: 'csv' })} label="CSV" sub="A plain table for other apps" />
                 </Divided>
               </View>
             </Surface>

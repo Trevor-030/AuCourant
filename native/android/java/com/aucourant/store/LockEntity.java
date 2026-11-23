@@ -26,6 +26,6 @@ public class LockEntity {
     public String recoverySalt = "";
     public boolean fingerprint;
     public int failedTries;
-    /** Phone time until which checks are refused after too many wrong tries. */
+    /** When the wait after too many wrong tries ends, in time since the phone started (TryLimit). */
     public long blockedUntil;
 }

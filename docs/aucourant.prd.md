@@ -177,7 +177,7 @@ A second, smaller audience exists: individuals who want to understand their own 
 5. **Person view:** total in, total out, number of payments, an optional nickname, and every payment with that person or shop.
 6. **Categories:** the default list (Food, Transport, Airtime and data, Bills, Family and friends, Savings, Business, Cash withdrawals, Fees, Other), each with its total for the period. The user can add, rename, hide and reorder categories, and see and remove rules.
 7. **Suggest and confirm:** when the user puts a payment in a category, the app offers *Also move 6 other payments with Kofi Boateng?* A rule is made only if they tap *Move them*. Every change can be undone.
-8. **Export:** CSV and PDF for the period, with chosen fields and an option to hide names and numbers.
+8. **Export:** PDF, Excel and CSV for the period, with chosen fields and an option to hide names and numbers.
 
 **Non-goals for Personal (version 1):** budgets, fee warnings, line charts, balances worked out by the app, the contacts permission (names come from the SMS or a typed nickname), bank or account connections, and machine learning for categories.
 

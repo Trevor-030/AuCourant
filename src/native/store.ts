@@ -6,7 +6,7 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native'
 import type { Change } from '../lib/persist'
 import type { CodeName } from '../lib/inbox'
-import { inExpoGo, MOMO_SENDERS, NativeMissingError } from './index'
+import { inExpoGo, NativeMissingError } from './index'
 
 type Native = {
   load(): Promise<string>
@@ -19,6 +19,7 @@ type Native = {
   setRecovery(code: string): Promise<void>
   setFingerprint(on: boolean): Promise<void>
   clearLock(): Promise<void>
+  lockWait(): Promise<number>
   checkLock(secret: string): Promise<LockCheck>
   checkRecovery(code: string): Promise<LockCheck>
 }
@@ -60,16 +61,23 @@ export const StoreNative = {
           onProgress(p.read, p.total)
         }) : null
     try {
-      return JSON.parse(await mod().scan(since, JSON.stringify({ ...opts, senders: MOMO_SENDERS })))
+      return JSON.parse(await mod().scan(since, JSON.stringify(opts)))
     } finally {
       sub?.remove()
     }
+  },
+  /** Calls `run` when a MoMo message arrives while the app is running (SmsReceiver.java). Returns the stop function. */
+  onNewMessage(run: () => void): () => void {
+    const sub = new NativeEventEmitter(NativeModules[NAME]).addListener('AuCourantNewMessage', run)
+    return () => sub.remove()
   },
   setLock: (type: string, secret: string, recovery: string, fingerprint = false) => mod().setLock(type, secret, recovery, fingerprint),
   changeSecret: (type: string, secret: string) => mod().changeSecret(type, secret),
   setRecovery: (code: string) => mod().setRecovery(code),
   setFingerprint: (on: boolean) => mod().setFingerprint(on),
   clearLock: () => mod().clearLock(),
+  /** Seconds left of a wait the app was restarted in. */
+  lockWait: () => mod().lockWait(),
   checkLock: (secret: string) => mod().checkLock(secret),
   checkRecovery: (code: string) => mod().checkRecovery(code),
 }

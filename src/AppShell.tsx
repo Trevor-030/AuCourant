@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Animated, AppState, BackHandler, Easing, Pressable, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { useApp, type OnbStep, type Route, type Tab } from './lib/store'
+import { SaveError, useApp, type OnbStep, type Route, type Tab } from './lib/store'
 import { plural } from './lib/format'
 import { SmsNative } from './native'
+import { StoreNative } from './native/store'
 import { DURATION, makeStyles, useTheme } from './theme'
 import { T } from './ui/kit'
 import { ExportIcon, HouseIcon, ReceiptIcon, StackIcon, TagIcon, type Icon } from './ui/icons'
@@ -274,7 +275,8 @@ function useHardwareBack() {
   }, [])
 }
 
-const NEW_MESSAGES_EVERY_MS = 20000
+/** A safety net for phones that hold back the receiver. */
+const NEW_MESSAGES_EVERY_MS = 60000
 /** Founder, 2026-11-21: lock again after 5 minutes away, so a quick switch to the MoMo app does not ask. */
 const AUTO_LOCK_MS = 5 * 60 * 1000
 
@@ -302,10 +304,10 @@ function useAutoLock() {
 }
 
 /**
- * While real payments are on screen, looks for new MoMo messages when the app comes back to the
- * front and every 20 seconds while it stays open, so totals keep up during a service. New
- * payments are added quietly; nothing else changes. Reading, sorting and saving happen in Java
- * (scanMessages). This stands in for the live SMS receiver, which comes next.
+ * While real payments are on screen, looks for new MoMo messages as they arrive (SmsReceiver.java),
+ * when the app opens or comes back to the front, and once a minute in case the phone held the
+ * receiver back, so totals keep up during a service. New payments are added quietly; nothing else
+ * changes. Reading, sorting and saving happen in Java (scanMessages).
  */
 function useNewMessages() {
   const app = useApp()
@@ -315,28 +317,49 @@ function useNewMessages() {
   useEffect(() => {
     if (!on || !SmsNative.canReadMessages()) return
     let busy = false
+    /** A message arrived during a check, perhaps after it had read the inbox. */
+    let again = false
+    let toldSaveFailed = false
     // The Scan messages again screen does its own reading.
     const rescanning = () => ref.current.route.name === 'rescan'
     const check = async () => {
-      if (busy || AppState.currentState !== 'active' || rescanning()) return
+      if (busy) {
+        again = true
+        return
+      }
+      if (AppState.currentState !== 'active' || rescanning()) return
       busy = true
       try {
         if (!(await SmsNative.hasPermission())) return
         if (rescanning()) return
         const { newPayments } = await ref.current.scanMessages()
+        toldSaveFailed = false
         // Never replace a message that is offering Undo.
         if (newPayments > 0 && !ref.current.snack) ref.current.notify(`${plural(newPayments, 'new payment')} added.`)
-      } catch {
+      } catch (e) {
         // A missed check costs nothing: the next one, or Scan messages again, picks the payment up.
+        // But while edits cannot be saved no check gets through, so say why totals stopped moving.
+        if (e instanceof SaveError && !toldSaveFailed) {
+          toldSaveFailed = true
+          ref.current.notify("New payments can't be added until your changes are saved. Check that the phone has free storage.")
+        }
       } finally {
         busy = false
+        if (again) {
+          again = false
+          void check()
+        }
       }
     }
+    void check()
+    const stopListening = StoreNative.onNewMessage(check)
     const sub = AppState.addEventListener('change', (st) => {
       if (st === 'active') check()
     })
     const timer = setInterval(check, NEW_MESSAGES_EVERY_MS)
     return () => {
+      again = false
+      stopListening()
       sub.remove()
       clearInterval(timer)
     }

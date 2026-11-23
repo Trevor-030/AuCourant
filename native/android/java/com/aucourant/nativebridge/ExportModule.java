@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.FileProvider;
@@ -16,11 +17,10 @@ import com.facebook.react.bridge.ReactMethod;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Writes export files (CSV, PDF) into app-private storage and hands them to other apps.
+ * Writes export files (PDF, Excel, CSV) into app-private storage and hands them to other apps.
  * Nothing is uploaded: the user picks where the file goes from the Android share sheet.
  */
 public class ExportModule extends ReactContextBaseJavaModule {
@@ -43,14 +43,22 @@ public class ExportModule extends ReactContextBaseJavaModule {
 
     /**
      * @param fileName plain file name, no folders
-     * @param content  file text
-     * @param encoding "utf8" for CSV, "latin1" for the hand-written PDF (one byte per char)
+     * @param content  file text, or Base64
+     * @param encoding "utf8" for CSV, "latin1" for the hand-written PDF (one byte per char), "base64" for Excel
      * @return absolute path of the written file
      */
     @ReactMethod
     public void writeReport(String fileName, String content, String encoding, Promise promise) {
         String safe = fileName.replaceAll("[\\\\/:*?\"<>|]", "-");
-        Charset cs = "latin1".equals(encoding) ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8;
+        byte[] bytes;
+        try {
+            bytes = "base64".equals(encoding)
+                    ? Base64.decode(content, Base64.NO_WRAP)
+                    : content.getBytes("latin1".equals(encoding) ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            promise.reject("E_CONTENT", "Could not create the report.", e);
+            return;
+        }
         File dir = new File(getReactApplicationContext().getFilesDir(), DIR);
         if (!dir.exists() && !dir.mkdirs()) {
             promise.reject("E_STORAGE", "Could not create the exports folder.");
@@ -58,7 +66,7 @@ public class ExportModule extends ReactContextBaseJavaModule {
         }
         File file = new File(dir, safe);
         try (FileOutputStream out = new FileOutputStream(file)) {
-            out.write(content.getBytes(cs));
+            out.write(bytes);
             promise.resolve(file.getAbsolutePath());
         } catch (IOException e) {
             promise.reject("E_STORAGE", "Could not write the report. Check that the phone has free storage.", e);

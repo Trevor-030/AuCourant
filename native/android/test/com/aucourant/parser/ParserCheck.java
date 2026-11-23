@@ -25,6 +25,7 @@ public final class ParserCheck {
         airtime();
         reversal();
         unread();
+        senders();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
     }
@@ -181,6 +182,18 @@ public final class ParserCheck {
         eq("known type without amount is partial", ParsedSms.Status.PARTIAL, partial.status);
         ParsedSms empty = ParserRegistry.mtn().parse(null);
         eq("null body is unread", TxType.UNREAD, empty.type);
+    }
+
+    // ---- Sender IDs (inbox scan and live receiver) ----------------------------------
+
+    private static void senders() {
+        eq("sender MobileMoney", true, MomoSenders.matches("MobileMoney"));
+        eq("sender any case", true, MomoSenders.matches("MOBILEMONEY"));
+        eq("sender with a space", true, MomoSenders.matches("MTN MoMo"));
+        eq("sender inside a longer address", true, MomoSenders.matches("VM-MobileMoney"));
+        eq("sender other", false, MomoSenders.matches("MTN"));
+        eq("sender phone number", false, MomoSenders.matches("+233241234567"));
+        eq("sender missing", false, MomoSenders.matches(null));
     }
 
     // ---- Assertions --------------------------------------------------------------

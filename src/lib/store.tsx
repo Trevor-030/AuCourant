@@ -22,12 +22,13 @@ import {
 } from './data'
 import { DAYS, TODAY, addDays, inWindow, latestWeekday, longDate, normalize, phoneToday, shortDate, toMin, weekdayOf } from './format'
 import { codeDoubt, NO_REFERENCE, type CodeName } from './inbox'
-import { createSaveQueue, launchPhase, mergeScan, settleNew, type GroupChange } from './persist'
+import { createSaveQueue, launchPhase, mergeScan, settleNew, undoNaming, type GroupChange } from './persist'
 import { usePersonalState, type PExportPrefs } from './personal'
 import { DEFAULT_CATEGORIES, type Category, type CategoryRule, type PTx } from './personal-data'
 import type { PeriodId } from './periods'
+import type { ReportFormat } from './report'
 import { StoreNative, type LockCheck, type NativeScanResult, type Snapshot } from '../native/store'
-import { hasNative, LockNative } from '../native'
+import { FingerprintNative, hasNative, LockNative, type FingerprintResult, type FingerprintStatus } from '../native'
 
 export type ThemePref = 'dark' | 'light' | 'system'
 export type Motion = 'full' | 'reduced'
@@ -72,12 +73,20 @@ export type Service = {
   end?: string
 }
 export type Snack = { id: number; message: string; action?: { label: string; run: () => void } }
-export type ExportPrefs = { format: 'pdf' | 'csv'; hideMembers: boolean; fields: ExportField[] }
+export type ExportPrefs = { format: ReportFormat; hideMembers: boolean; fields: ExportField[] }
 export type TxFilters = { thisService: boolean; groupId: string | null; query: string }
 export type SessionDraft = { name: string; date: string; start: string; end: string }
 /** Sample payments (Expo Go, or before the first scan), or payments read from this phone's messages. */
 export type DataSource = 'sample' | 'messages'
 export type ScanResult = { messages: number; newPayments: number }
+
+/** A scan could not start because edits could not be saved first. */
+export class SaveError extends Error {
+  constructor() {
+    super("Couldn't save. Try again.")
+    this.name = 'SaveError'
+  }
+}
 
 /** A message can reach the inbox a little after its own timestamp, so checks overlap by this much. */
 const NEW_MESSAGE_OVERLAP_MS = 10 * 60 * 1000
@@ -346,11 +355,33 @@ function useAppState() {
     if (realLock()) await StoreNative.setRecovery(code)
     else if (memLock.current) memLock.current = { ...memLock.current, recovery: code }
   }
-  const setFingerprint = async (on: boolean) => {
-    if (realLock() && lock) await StoreNative.setFingerprint(on)
+  /** Whether this phone can unlock with a fingerprint. Always ready on sample data, where it is simulated. */
+  const fingerprintStatus = async (): Promise<FingerprintStatus> => (realLock() ? FingerprintNative.status().catch(() => 'unavailable' as const) : 'ready')
+  /** Turning it on asks for a fingerprint first; anything but 'ok' leaves it as it was. */
+  const setFingerprint = async (on: boolean): Promise<FingerprintResult> => {
+    if (realLock() && lock) {
+      if (on) {
+        const r = await FingerprintNative.enable()
+        if (r !== 'ok') return r
+      } else await FingerprintNative.disable()
+      await StoreNative.setFingerprint(on)
+    }
     setLock((l) => (l ? { ...l, fingerprint: on } : l))
+    return 'ok'
   }
-  /** After 5 wrong tries Java refuses for 30 seconds, also across restarts (`waitSeconds`). */
+  /**
+   * Asks for a fingerprint to unlock. When the phone's fingerprints changed it is turned off: on a
+   * shared phone, someone may have added theirs.
+   */
+  const checkFingerprint = async (): Promise<FingerprintResult> => {
+    if (!realLock()) return new Promise((resolve) => setTimeout(() => resolve('ok'), 700))
+    const r = await FingerprintNative.check().catch(() => 'unavailable' as const)
+    if (r === 'changed') await setFingerprint(false).catch(() => {})
+    return r
+  }
+  /** Seconds left of a wait after too many wrong tries, when the app was closed during it. */
+  const lockWait = async () => (realLock() ? StoreNative.lockWait().catch(() => 0) : 0)
+  /** After 5 wrong tries Java refuses for 30 seconds, also when the app restarts (`waitSeconds`). */
   const checkLock = async (value: string): Promise<LockCheck> =>
     realLock() ? StoreNative.checkLock(value) : { ok: value === (memLock.current?.secret ?? DEMO_SECRET), waitSeconds: 0 }
   const checkRecovery = async (code: string): Promise<LockCheck> =>
@@ -473,6 +504,7 @@ function useAppState() {
       return to
     }
     const prev = codes[code]
+    const before = new Set(allTxs.map((t) => t.id))
     setTxGroup(
       moved.map((x) => x.id),
       to,
@@ -483,7 +515,17 @@ function useAppState() {
       label: 'Undo',
       run: () => {
         record('undo', '', to, prev ?? '', cid)
-        setTxs((ts) => ts.map((t) => ({ ...t, groupId: moved.find((x) => x.id === t.id)?.from ?? t.groupId })))
+        // A check may have added payments with this code meanwhile. They wait under the code's own
+        // group (the one the Java sorter would use), or go back to what it meant before.
+        const lateTo = prev ?? `code-${code}`
+        const undoOf = { code, to, moved, lateTo, before }
+        const late = undoNaming(latest.current.allTxs, undoOf).some((t) => t.groupId === lateTo && !before.has(t.id))
+        if (late && !prev) {
+          setGroups((gs) =>
+            gs.some((g) => g.id === lateTo) ? gs.map((g) => (g.id === lateTo ? { ...g, hidden: false } : g)) : [...gs, { id: lateTo, name: `Code ${code}`, code }],
+          )
+        }
+        setTxs((ts) => undoNaming(ts, undoOf))
         withCode(code, prev)
         if (createdGroupId) setGroups((gs) => gs.filter((g) => g.id !== createdGroupId))
       },
@@ -571,8 +613,14 @@ function useAppState() {
     const m = merges.find((x) => x.id === mergeId)
     if (!m) return
     revertMerge(m)
-    record('undo', '', m.targetId, m.sourceId, 'c:' + m.id)
-    notify(`Split ${groupName(m.sourceId)} from ${groupName(m.targetId)}.`, { label: 'Undo', run: () => applyMerge(m) })
+    const cid = record('undo', '', m.targetId, m.sourceId, 'c:' + m.id)
+    notify(`Split ${groupName(m.sourceId)} from ${groupName(m.targetId)}.`, {
+      label: 'Undo',
+      run: () => {
+        applyMerge(m)
+        record('undo', '', m.sourceId, m.targetId, cid)
+      },
+    })
   }
 
   const keepSeparate = (sid: string) => {
@@ -613,7 +661,9 @@ function useAppState() {
    */
   const scanMessages = async (opts: { since?: number; onProgress?: (read: number, total: number) => void } = {}): Promise<ScanResult> => {
     if (!canScan) throw new Error('Scanning is off while the developer flows are showing sample data.')
-    if (!(await queue.flush())) throw new Error("Couldn't save. Try again.")
+    const saved = await queue.flush()
+    setSaveFailed(!saved)
+    if (!saved) throw new SaveError()
     const since = opts.since ?? (dataSource === 'messages' ? Math.max(0, newestSms.current - NEW_MESSAGE_OVERLAP_MS) : 0)
     const stop = queue.track()
     let res: NativeScanResult
@@ -803,7 +853,10 @@ function useAppState() {
   /** The last-resort erase (Settings, or a lost lock and code): the saved data goes too. */
   const eraseAll = () => {
     resetAll()
-    if (StoreNative.available() && !sampleMode) StoreNative.eraseAll().catch(() => notify("Couldn't erase. Try again."))
+    if (StoreNative.available() && !sampleMode) {
+      StoreNative.eraseAll().catch(() => notify("Couldn't erase. Try again."))
+      FingerprintNative.disable().catch(() => {})
+    }
   }
 
   const enterApp = (tab: Tab = 'home') => {
@@ -892,7 +945,10 @@ function useAppState() {
     lock,
     saveLock,
     saveRecovery,
+    fingerprintStatus,
     setFingerprint,
+    checkFingerprint,
+    lockWait,
     checkLock,
     checkRecovery,
     newRecoveryCode,

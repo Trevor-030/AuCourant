@@ -30,7 +30,7 @@ Needs the internet, accounts and often fees, and breaks the "nothing leaves the 
 
 ## Recommended approach
 
-Shared with the church design (no change): SMS intake, parser registry, Room database, app lock and recovery code, themes, export (CSV and PDF), fonts and colours.
+Shared with the church design (no change): SMS intake, parser registry, Room database, app lock and recovery code, themes, export (PDF, Excel and CSV), fonts and colours.
 
 New for Personal, all on the phone:
 
@@ -63,7 +63,7 @@ Navigation is four tabs: **Home, Transactions, Categories, Export.** Settings is
 - **Transaction detail:** amount, person, category (tappable), fee, reference, and a collapsed *More details* with the balance after that payment and the original message. A link *See all with this person*.
 - **Person view:** reached from a transaction. Total in, total out, count, nickname, and the list. For a shop this is the customer view.
 - **Categories:** each category with its spending in the period, a tap shows its payments. Manage categories and rules here.
-- **Export:** same screen as church, with the period instead of the service. CSV and PDF, choose fields, hide names option.
+- **Export:** same screen as church, with the period instead of the service. PDF, Excel and CSV, choose fields, hide names option.
 
 **Small business:** Home with the period set to *Today* is the daily total. *Money in* is sales. A person with many payments in is a repeat customer. There is no extra mode.
 
@@ -179,4 +179,4 @@ The Personal views start on sample data and switch to the phone's real payments 
 - A message that gives only a number (cash in) uses the name another message gave for that number.
 - Names written in capitals in the SMS are shown in title case. Shop and biller names are kept as written.
 
-**Still to build:** the live receiver (shared with church). Payments, categories, rules and nicknames are saved in Room since 2026-11-21.
+The live receiver is shared with church (built 2026-11-23). Payments, categories, rules and nicknames are saved in Room since 2026-11-21.

@@ -1,9 +1,10 @@
 import type { ExportField, Tx } from './data'
 import { money, shortDate } from './format'
+import { tableXlsx } from './xlsx'
 
 /**
- * Builds report contents as plain strings. Writing the file and sharing it is done
- * by the Java ExportModule (see src/native/export.ts).
+ * Builds report contents as strings (PDF and CSV as text, Excel as Base64). Writing the file and
+ * sharing it is done by the Java ExportModule (see src/native/index.ts).
  */
 type Ctx = {
   title: string
@@ -59,12 +60,8 @@ function churchTable(c: Ctx): Table {
       'AuCourant report',
       `${c.title}, ${c.dateLabel}`,
       `${c.txs.length} payments, ${money(sum)}`,
-      '',
-      'By group',
-      ...[...totals.entries()]
-        .sort((a, b) => b[1].sum - a[1].sum)
-        .map(([g, v]) => `  ${fit(g, 24)}${String(v.n).padStart(4)} payments ${money(v.sum).padStart(16)}`),
     ],
+    breakdown: { title: 'By group', rows: largestFirst(totals) },
     columns: c.fields.map((f) => ({ name: f, width: WIDTH[f], right: f === 'Amount' })),
     rows: c.txs.map((t) => c.fields.map((f) => cell(t, f, c.groupName))),
   }
@@ -72,15 +69,22 @@ function churchTable(c: Ctx): Table {
 
 export const buildCsv = (c: Ctx) => tableCsv(churchTable(c))
 export const buildPdf = (c: Ctx) => tablePdf(churchTable(c))
+export const buildXlsx = (c: Ctx) => tableXlsx(churchTable(c))
 
 export function fileBase(c: Pick<Ctx, 'title' | 'dateLabel'>) {
   return `AuCourant ${c.title} ${c.dateLabel}`.replace(/[,]/g, '').replace(/\s+/g, '-')
 }
 
-/** A report as columns and rows. Church and Personal both build one, then write CSV or PDF. */
+/** The file formats a report can be exported in. */
+export type ReportFormat = 'pdf' | 'xlsx' | 'csv'
+
+/** A report as columns and rows. Church and Personal both build one, then write PDF, Excel or CSV. */
 export type Table = {
-  /** Lines printed above the table in the PDF (title, totals, breakdown). */
+  /** Lines above the table in the PDF, and on the Summary sheet in Excel (title, totals). */
   summary: string[]
+  /** Totals per group or category, under the summary. */
+  breakdown?: { title: string; rows: { name: string; n: number; sum: number }[] }
+  /** `right`: an amount. Right-aligned in the PDF, a number in Excel. */
   columns: { name: string; width: number; right?: boolean }[]
   rows: string[][]
 }
@@ -92,6 +96,10 @@ export function tableCsv(t: Table) {
   return '﻿' + rows.join('\r\n')
 }
 
+/** Totals by name as breakdown rows, largest total first. */
+export const largestFirst = (totals: Map<string, { n: number; sum: number }>) =>
+  [...totals.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.sum - a.sum)
+
 export const fit = (s: string, w: number) => (s.length > w - 1 ? s.slice(0, w - 2) + '~' : s).padEnd(w)
 
 /**
@@ -100,7 +108,10 @@ export const fit = (s: string, w: number) => (s.length > w - 1 ? s.slice(0, w - 
  */
 export function tablePdf(t: Table) {
   const row = (vals: string[]) => vals.map((v, i) => (t.columns[i].right ? v.padStart(t.columns[i].width - 1) + ' ' : fit(v, t.columns[i].width))).join('')
-  const lines = [...t.summary, '', row(t.columns.map((c) => c.name)), '-'.repeat(t.columns.reduce((s, c) => s + c.width, 0)), ...t.rows.map(row)]
+  const breakdown = t.breakdown
+    ? ['', t.breakdown.title, ...t.breakdown.rows.map((b) => `  ${fit(b.name, 24)}${String(b.n).padStart(4)} payments ${money(b.sum).padStart(16)}`)]
+    : []
+  const lines = [...t.summary, ...breakdown, '', row(t.columns.map((c) => c.name)), '-'.repeat(t.columns.reduce((s, c) => s + c.width, 0)), ...t.rows.map(row)]
   const esc = (s: string) => s.replace(/[^\x20-\x7e]/g, '?').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
   const perPage = 34
   const pages: string[][] = []

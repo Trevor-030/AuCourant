@@ -11,6 +11,7 @@ import com.aucourant.sorting.Model.Row;
 import com.aucourant.sorting.PersonalReader;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -33,7 +34,33 @@ public final class Scanner {
         Kinds.PTXS, Kinds.CATEGORIES, Kinds.RULES, Kinds.NICKNAMES, Kinds.SEEN, Kinds.CHANGES,
     };
 
+    private static final String[] CHURCH = {
+        Kinds.TXS, Kinds.GROUPS, Kinds.MERGES, Kinds.SUGGESTIONS, Kinds.UNREAD, Kinds.CODES,
+    };
+    private static final Map<String, List<RecordEntity>> NOTHING_SAVED = Collections.emptyMap();
+
     private Scanner() {
+    }
+
+    /** What a scan needs when the screens are not running (the live receiver). */
+    public static final class Resume {
+        public final long newestSms;
+        public final Map<String, Object> opts;
+
+        Resume(long newestSms, Map<String, Object> opts) {
+            this.newestSms = newestSms;
+            this.opts = opts;
+        }
+    }
+
+    /** Null before the first scan: the user has to start that one, so nothing is read before it. */
+    public static Resume resume(AuCourantDatabase db) {
+        StoreDao dao = db.dao();
+        if (!"messages".equals(setting(dao, "dataSource"))) return null;
+        Object useType = setting(dao, "useType");
+        Map<String, Object> opts = new LinkedHashMap<>();
+        opts.put("useType", useType instanceof String ? useType : "church");
+        return new Resume((long) number(setting(dao, "newestSms")), opts);
     }
 
     /**
@@ -55,8 +82,9 @@ public final class Scanner {
         boolean first = !"messages".equals(setting(dao, "dataSource"));
         String useType = Model.str(opts, "useType");
 
-        Set<String> seen = new HashSet<>();
-        if (!first) for (RecordEntity r : dao.all(Kinds.SEEN)) seen.add(r.id);
+        List<String> ids = new ArrayList<>();
+        for (Row r : rows) ids.add(r.sms.id);
+        Set<String> seen = first ? new HashSet<>() : dao.known(Kinds.SEEN, ids);
         List<Row> fresh = new ArrayList<>();
         for (Row r : rows) if (!seen.contains(r.sms.id)) fresh.add(r);
 
@@ -74,13 +102,16 @@ public final class Scanner {
         if (first) for (String kind : FIRST_SCAN_CLEARS) dao.clearKind(kind);
 
         // ---- Church: sort the new messages against the saved groups, codes and merges.
+        // Each list is loaded once: it is sorted against, then compared with what came out.
+        Map<String, List<RecordEntity>> saved = new HashMap<>();
+        for (String kind : CHURCH) saved.put(kind, first ? new ArrayList<>() : dao.all(kind));
         ChurchData before;
         if (first) {
             List<CodeName> names = new ArrayList<>();
             for (Object o : Model.list(opts, "firstRunCodes")) names.add(CodeName.fromJson(Model.asMap(o)));
             before = ChurchSorter.emptyChurch(names);
         } else {
-            before = loadChurch(dao);
+            before = loadChurch(saved);
         }
         // Organisations have no built-in pairs (architecture.md, use type).
         ChurchData next = ChurchSorter.addChurchRows(before, fresh, !"organisation".equals(useType));
@@ -103,12 +134,12 @@ public final class Scanner {
             c.put("groupId", e.getValue());
             codes.add(c);
         }
-        changed.put("txs", write(dao, Kinds.TXS, txs, false));
-        changed.put("groups", write(dao, Kinds.GROUPS, groups, true));
-        changed.put("merges", write(dao, Kinds.MERGES, merges, true));
-        changed.put("suggestions", write(dao, Kinds.SUGGESTIONS, suggestions, true));
-        changed.put("unread", write(dao, Kinds.UNREAD, unread, false));
-        changed.put("codes", write(dao, Kinds.CODES, codes, false));
+        changed.put("txs", write(dao, Kinds.TXS, saved, txs, false));
+        changed.put("groups", write(dao, Kinds.GROUPS, saved, groups, true));
+        changed.put("merges", write(dao, Kinds.MERGES, saved, merges, true));
+        changed.put("suggestions", write(dao, Kinds.SUGGESTIONS, saved, suggestions, true));
+        changed.put("unread", write(dao, Kinds.UNREAD, saved, unread, false));
+        changed.put("codes", write(dao, Kinds.CODES, saved, codes, false));
 
         // ---- Personal: every row, plus what is already saved, so a reversal finds its person.
         List<PTx> known = new ArrayList<>();
@@ -121,11 +152,12 @@ public final class Scanner {
         if (!first) for (RecordEntity r : dao.all(Kinds.RULES)) rules.add(Model.CategoryRule.fromJson(Model.asMap(Json.parse(r.json))));
         List<Map<String, Object>> pTxs = new ArrayList<>();
         for (PTx t : Categoriser.categoriseAll(added, rules)) pTxs.add(t.toJson());
-        changed.put("pTxs", write(dao, Kinds.PTXS, pTxs, false));
+        // Only payments that were not saved yet, so there is nothing to compare them with.
+        changed.put("pTxs", write(dao, Kinds.PTXS, NOTHING_SAVED, pTxs, false));
         if (first) {
             List<Map<String, Object>> categories = new ArrayList<>();
             for (Object o : Model.list(opts, "defaultCategories")) categories.add(Model.asMap(o));
-            changed.put("categories", write(dao, Kinds.CATEGORIES, categories, true));
+            changed.put("categories", write(dao, Kinds.CATEGORIES, NOTHING_SAVED, categories, true));
         }
 
         // Count what this use type shows: payments received and cash in for a church, every payment for Personal.
@@ -134,10 +166,8 @@ public final class Scanner {
         // ---- What was read, so the next scan only looks at what is new.
         List<RecordEntity> seenRows = new ArrayList<>();
         long newest = first ? 0 : (long) number(setting(dao, "newestSms"));
-        for (Row r : rows) {
-            seenRows.add(new RecordEntity(Kinds.SEEN, r.sms.id, 0, "true"));
-            newest = Math.max(newest, r.sms.date);
-        }
+        for (Row r : fresh) seenRows.add(new RecordEntity(Kinds.SEEN, r.sms.id, 0, "true"));
+        for (Row r : rows) newest = Math.max(newest, r.sms.date);
         dao.upsert(seenRows);
         List<RecordEntity> settings = new ArrayList<>();
         settings.add(new RecordEntity(Kinds.SETTINGS, "dataSource", 0, Json.write("messages")));
@@ -148,9 +178,9 @@ public final class Scanner {
     }
 
     /** Saves the items of `next` that are new or differ from what is saved; returns them. */
-    private static List<Object> write(StoreDao dao, String kind, List<Map<String, Object>> next, boolean ordered) {
+    private static List<Object> write(StoreDao dao, String kind, Map<String, List<RecordEntity>> lists, List<Map<String, Object>> next, boolean ordered) {
         Map<String, String> saved = new HashMap<>();
-        for (RecordEntity r : dao.all(kind)) saved.put(r.id, r.json);
+        for (RecordEntity r : lists.getOrDefault(kind, Collections.emptyList())) saved.put(r.id, r.json);
         List<RecordEntity> rows = new ArrayList<>();
         List<Object> changed = new ArrayList<>();
         for (int i = 0; i < next.size(); i++) {
@@ -165,15 +195,15 @@ public final class Scanner {
         return changed;
     }
 
-    static ChurchData loadChurch(StoreDao dao) {
+    private static ChurchData loadChurch(Map<String, List<RecordEntity>> saved) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("txs", items(dao, Kinds.TXS));
-        m.put("groups", items(dao, Kinds.GROUPS));
-        m.put("merges", items(dao, Kinds.MERGES));
-        m.put("suggestions", items(dao, Kinds.SUGGESTIONS));
-        m.put("unread", items(dao, Kinds.UNREAD));
+        m.put("txs", items(saved.get(Kinds.TXS)));
+        m.put("groups", items(saved.get(Kinds.GROUPS)));
+        m.put("merges", items(saved.get(Kinds.MERGES)));
+        m.put("suggestions", items(saved.get(Kinds.SUGGESTIONS)));
+        m.put("unread", items(saved.get(Kinds.UNREAD)));
         Map<String, Object> codes = new LinkedHashMap<>();
-        for (Object o : items(dao, Kinds.CODES)) {
+        for (Object o : items(saved.get(Kinds.CODES))) {
             Map<String, Object> c = Model.asMap(o);
             codes.put(Model.str(c, "code"), Model.str(c, "groupId"));
         }
@@ -181,9 +211,9 @@ public final class Scanner {
         return ChurchData.fromJson(m);
     }
 
-    private static List<Object> items(StoreDao dao, String kind) {
+    private static List<Object> items(List<RecordEntity> rows) {
         List<Object> out = new ArrayList<>();
-        for (RecordEntity r : dao.all(kind)) out.add(Json.parse(r.json));
+        for (RecordEntity r : rows) out.add(Json.parse(r.json));
         return out;
     }
 

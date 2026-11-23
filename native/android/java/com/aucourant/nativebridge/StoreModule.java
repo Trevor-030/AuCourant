@@ -1,7 +1,11 @@
 package com.aucourant.nativebridge;
 
+import android.content.Context;
+import android.os.SystemClock;
+
 import androidx.annotation.NonNull;
 
+import com.aucourant.lock.TryLimit;
 import com.aucourant.parser.ParserRegistry;
 import com.aucourant.sorting.Json;
 import com.aucourant.sorting.Model;
@@ -25,21 +29,29 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Saved data (docs/superpowers/specs/2026-11-21-room-storage-design.md). The screens keep their
  * edits in TypeScript and send them here; scans read, sort and save in Java. Everything crosses the
- * bridge as JSON strings. All database work runs on one thread, so calls run in the order they arrive.
+ * bridge as JSON strings. List work runs on one thread, so calls run in the order they arrive; lock
+ * checks have their own, so a PIN never waits behind a scan.
  */
 public class StoreModule extends ReactContextBaseJavaModule {
     static final String NAME = "AuCourantStore";
     static final String PROGRESS_EVENT = "AuCourantScanProgress";
     /** Messages handed to the parser between progress events. */
     private static final int PROGRESS_EVERY = 100;
-    private static final int MAX_TRIES = 5;
-    private static final long WAIT_MS = 30_000;
+    /** A MoMo message arrived while the screens are running: they scan it in, since they hold unsaved edits. */
+    static final String NEW_MESSAGE_EVENT = "AuCourantNewMessage";
+    /** Same overlap as src/lib/store.tsx: a message can reach the inbox a little after its own timestamp. */
+    private static final long OVERLAP_MS = 10 * 60 * 1000;
 
     private static final ExecutorService WORKER = Executors.newSingleThreadExecutor();
+    private static final ExecutorService LOCK_WORKER = Executors.newSingleThreadExecutor();
+
+    /** The module whose screens have loaded the saved data, or null. Set and read on WORKER; see messageArrived. */
+    private static volatile StoreModule live;
 
     StoreModule(ReactApplicationContext context) {
         super(context);
@@ -61,7 +73,11 @@ public class StoreModule extends ReactContextBaseJavaModule {
 
     /** Runs on the worker thread; resolves the result, or rejects with a plain message. */
     private void work(Promise promise, String code, String message, Job job) {
-        WORKER.execute(() -> {
+        work(WORKER, promise, code, message, job);
+    }
+
+    private void work(ExecutorService worker, Promise promise, String code, String message, Job job) {
+        worker.execute(() -> {
             try {
                 promise.resolve(job.run());
             } catch (Exception e) {
@@ -79,12 +95,13 @@ public class StoreModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void load(Promise promise) {
         work(promise, "E_LOAD", "Couldn't load your data.", () -> {
+            // From here on these screens hold the data, so the receiver leaves scanning to them.
+            live = this;
             StringBuilder lists = new StringBuilder("{");
             StringBuilder settings = new StringBuilder("{");
             String kind = null;
             boolean firstItem = true;
-            for (RecordEntity r : dao().everything()) {
-                if (Kinds.SEEN.equals(r.kind)) continue;
+            for (RecordEntity r : dao().allExcept(Kinds.SEEN)) {
                 if (Kinds.SETTINGS.equals(r.kind)) {
                     if (settings.length() > 1) settings.append(',');
                     settings.append(Json.write(r.id)).append(':').append(r.json);
@@ -162,7 +179,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
     /**
      * Reads the inbox from `sinceMillis`, parses, sorts and saves in one transaction.
      *
-     * @param optsJson { useType, senders, firstRunCodes, defaultCategories }
+     * @param optsJson { useType, firstRunCodes, defaultCategories }
      * @return JSON { messages, newPayments, first, changed: {...} }. Emits AuCourantScanProgress { read, total }.
      */
     @ReactMethod
@@ -173,7 +190,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
         }
         work(promise, "E_SCAN", "We couldn't finish reading messages.", () -> {
             Map<String, Object> opts = Model.asMap(Json.parse(optsJson));
-            List<Model.Sms> inbox = SmsModule.readInbox(getReactApplicationContext(), Model.strings(opts.get("senders")), (long) sinceMillis);
+            List<Model.Sms> inbox = SmsModule.readInbox(getReactApplicationContext(), (long) sinceMillis);
             List<Model.Row> rows = new ArrayList<>();
             progress(0, inbox.size());
             for (Model.Sms sms : inbox) {
@@ -192,6 +209,41 @@ public class StoreModule extends ReactContextBaseJavaModule {
         getReactApplicationContext().getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit(PROGRESS_EVENT, m);
     }
 
+    // ---- Messages as they arrive (SmsReceiver) ---------------------------------------
+
+    /**
+     * A MoMo message is in the inbox. While screens are running they are told and scan it in
+     * themselves; otherwise it is read, sorted and saved here, so it is there when the app opens.
+     * The check runs on WORKER, where `load` also marks the screens as running: a message is either
+     * saved before they load, or they are told about it.
+     */
+    static Future<?> messageArrived(Context context) {
+        return WORKER.submit(() -> {
+            StoreModule screens = live;
+            if (screens != null) {
+                ReactApplicationContext react = screens.getReactApplicationContext();
+                if (react.hasActiveReactInstance()) react.emitDeviceEvent(NEW_MESSAGE_EVENT);
+                return null;
+            }
+            if (!SmsModule.granted(context)) return null;
+            AuCourantDatabase db = AuCourantDatabase.get(context);
+            Scanner.Resume resume = Scanner.resume(db);
+            if (resume == null) return null;
+            List<Model.Row> rows = new ArrayList<>();
+            for (Model.Sms sms : SmsModule.readInbox(context, Math.max(0, resume.newestSms - OVERLAP_MS))) {
+                rows.add(new Model.Row(sms, SmsModule.parsedOf(ParserRegistry.mtn().parse(sms.body))));
+            }
+            Scanner.scan(db, rows, resume.opts);
+            return null;
+        });
+    }
+
+    @Override
+    public void invalidate() {
+        if (live == this) live = null;
+        super.invalidate();
+    }
+
     /** Required by NativeEventEmitter. */
     @ReactMethod
     public void addListener(String eventName) {
@@ -207,7 +259,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
     /** Saves a new lock. Only hashes are kept; the recovery code is checked without dashes, upper case. */
     @ReactMethod
     public void setLock(String type, String secret, String recovery, boolean fingerprint, Promise promise) {
-        work(promise, "E_LOCK", "Could not save the lock.", () -> {
+        lockWork(promise, "E_LOCK", "Could not save the lock.", () -> {
             LockEntity l = new LockEntity();
             l.type = type;
             String[] h = LockModule.hash(secret);
@@ -225,7 +277,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
     /** Changes the PIN or password and keeps the recovery code. */
     @ReactMethod
     public void changeSecret(String type, String secret, Promise promise) {
-        work(promise, "E_LOCK", "Could not save the lock.", () -> {
+        lockWork(promise, "E_LOCK", "Could not save the lock.", () -> {
             LockEntity l = requireLock();
             l.type = type;
             String[] h = LockModule.hash(secret);
@@ -241,7 +293,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
     /** A new recovery code; the old one stops working. */
     @ReactMethod
     public void setRecovery(String code, Promise promise) {
-        work(promise, "E_LOCK", "Could not save the lock.", () -> {
+        lockWork(promise, "E_LOCK", "Could not save the lock.", () -> {
             LockEntity l = requireLock();
             String[] r = LockModule.hash(recoveryKey(code));
             l.recoveryHash = r[0];
@@ -253,7 +305,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void setFingerprint(boolean on, Promise promise) {
-        work(promise, "E_LOCK", "Could not save the lock.", () -> {
+        lockWork(promise, "E_LOCK", "Could not save the lock.", () -> {
             LockEntity l = requireLock();
             l.fingerprint = on;
             dao().saveLock(l);
@@ -263,22 +315,31 @@ public class StoreModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void clearLock(Promise promise) {
-        work(promise, "E_LOCK", "Could not remove the lock.", () -> {
+        lockWork(promise, "E_LOCK", "Could not remove the lock.", () -> {
             dao().clearLock();
             return null;
         });
     }
 
-    /** Resolves { ok, waitSeconds }. After 5 wrong tries, refuses for 30 seconds, also across restarts. */
+    /** Seconds left of a wait the app was restarted in; 0 for none. */
+    @ReactMethod
+    public void lockWait(Promise promise) {
+        lockWork(promise, "E_VERIFY", "Could not check the lock.", () -> {
+            LockEntity l = dao().lock();
+            return l == null ? 0 : limitOf(l).waitSeconds(SystemClock.elapsedRealtime());
+        });
+    }
+
+    /** Resolves { ok, waitSeconds }. After 5 wrong tries, refuses for 30 seconds, also when the app restarts. */
     @ReactMethod
     public void checkLock(String secret, Promise promise) {
-        work(promise, "E_VERIFY", "Could not check the lock.", () -> check(secret, false));
+        lockWork(promise, "E_VERIFY", "Could not check the lock.", () -> check(secret, false));
     }
 
     /** Same as checkLock, for the recovery code. A right code does not unlock; it allows setting a new lock. */
     @ReactMethod
     public void checkRecovery(String code, Promise promise) {
-        work(promise, "E_VERIFY", "Could not check the code.", () -> check(recoveryKey(code), true));
+        lockWork(promise, "E_VERIFY", "Could not check the code.", () -> check(recoveryKey(code), true));
     }
 
     private WritableMap check(String value, boolean recovery) throws Exception {
@@ -287,23 +348,32 @@ public class StoreModule extends ReactContextBaseJavaModule {
         out.putBoolean("ok", false);
         out.putInt("waitSeconds", 0);
         if (l == null) return out;
-        long now = System.currentTimeMillis();
-        if (now < l.blockedUntil) {
-            out.putInt("waitSeconds", (int) Math.ceil((l.blockedUntil - now) / 1000.0));
+        long now = SystemClock.elapsedRealtime();
+        TryLimit limit = limitOf(l);
+        int wait = limit.waitSeconds(now);
+        if (wait > 0) {
+            out.putInt("waitSeconds", wait);
             return out;
         }
         boolean ok = recovery ? LockModule.verify(value, l.recoveryHash, l.recoverySalt) : LockModule.verify(value, l.hash, l.salt);
-        if (ok) {
-            l.failedTries = 0;
-            l.blockedUntil = 0;
-        } else if (++l.failedTries >= MAX_TRIES) {
-            l.failedTries = 0;
-            l.blockedUntil = now + WAIT_MS;
-            out.putInt("waitSeconds", (int) (WAIT_MS / 1000));
+        TryLimit next = ok ? limit.right() : limit.wrong(now);
+        // A right try with nothing to clear writes nothing, so it never waits for a scan to finish saving.
+        if (next.failedTries != l.failedTries || next.blockedUntil != l.blockedUntil) {
+            l.failedTries = next.failedTries;
+            l.blockedUntil = next.blockedUntil;
+            dao().updateLock(l);
         }
-        dao().saveLock(l);
+        out.putInt("waitSeconds", next.waitSeconds(now));
         out.putBoolean("ok", ok);
         return out;
+    }
+
+    private static TryLimit limitOf(LockEntity l) {
+        return new TryLimit(l.failedTries, l.blockedUntil);
+    }
+
+    private void lockWork(Promise promise, String code, String message, Job job) {
+        work(LOCK_WORKER, promise, code, message, job);
     }
 
     private LockEntity requireLock() {

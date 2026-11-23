@@ -1,7 +1,7 @@
 import { money, shortDate } from './format'
 import { totalsOf, type PExportField } from './personal'
 import { KIND_LABEL, type PTx } from './personal-data'
-import { fit, type Table } from './report'
+import { largestFirst, type Table } from './report'
 
 type Ctx = {
   title: string
@@ -68,12 +68,8 @@ export function personalTable(c: Ctx): Table {
       'AuCourant report',
       `${c.title}, ${c.dateLabel}`,
       `${c.txs.length} payments. Money in ${money(tot.moneyIn)}. Money out ${money(tot.moneyOut)}. Fees paid ${money(tot.fees)}.`,
-      '',
-      'Spending by category',
-      ...[...byCat.entries()]
-        .sort((a, b) => b[1].sum - a[1].sum)
-        .map(([name, v]) => `  ${fit(name, 24)}${String(v.n).padStart(4)} payments ${money(v.sum).padStart(16)}`),
     ],
+    breakdown: { title: 'Spending by category', rows: largestFirst(byCat) },
     columns: c.fields.map((f) => ({ name: f, width: WIDTH[f], right: f === 'Amount' || f === 'Fee' })),
     rows: c.txs.map((t) => c.fields.map((f) => cell(t, f, c))),
   }

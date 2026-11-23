@@ -8,7 +8,9 @@
  *   2. registers AuCourantPackage in MainApplication,
  *   3. adds the FileProvider used to share exported reports,
  *   4. builds for 64-bit ARM phones only (founder, 2026-11-21),
- *   5. adds Room (SQLite storage) with its Java annotation processor.
+ *   5. adds Room (SQLite storage) with its Java annotation processor,
+ *   6. declares SmsReceiver, which hears about new SMS,
+ *   7. adds AndroidX Biometric (fingerprint unlock).
  */
 const fs = require('fs')
 const path = require('path')
@@ -110,4 +112,30 @@ const withRoom = (config) =>
     return cfg
   })
 
-module.exports = (config) => withRoom(with64BitOnly(withFileProvider(withPackageRegistered(withJavaSources(config)))))
+/** Hears about new SMS. `BROADCAST_SMS` is held only by the system, so no other app can send it fake ones. */
+const withSmsReceiver = (config) =>
+  withAndroidManifest(config, (cfg) => {
+    const app = AndroidConfig.Manifest.getMainApplicationOrThrow(cfg.modResults)
+    const name = `${PKG}.SmsReceiver`
+    app.receiver = (app.receiver ?? []).filter((r) => r.$['android:name'] !== name)
+    app.receiver.push({
+      $: { 'android:name': name, 'android:exported': 'true', 'android:permission': 'android.permission.BROADCAST_SMS' },
+      'intent-filter': [{ action: [{ $: { 'android:name': 'android.provider.Telephony.SMS_RECEIVED' } }] }],
+    })
+    return cfg
+  })
+
+/** Fingerprint unlock (FingerprintModule.java). 1.1.0 is the newest stable release (checked 2026-11-22). */
+const BIOMETRIC = '1.1.0'
+const withBiometric = (config) =>
+  withAppBuildGradle(config, (cfg) => {
+    const src = cfg.modResults.contents
+    if (src.includes('androidx.biometric:biometric')) return cfg
+    const anchor = /^dependencies \{\r?\n/m
+    if (!anchor.test(src)) throw new Error('[with-aucourant-native] Could not find the dependencies block in app/build.gradle.')
+    const lines = ['dependencies {', '    // AuCourant fingerprint unlock. Added by plugins/with-aucourant-native.js.', `    implementation("androidx.biometric:biometric:${BIOMETRIC}")`, '', '']
+    cfg.modResults.contents = src.replace(anchor, lines.join('\n'))
+    return cfg
+  })
+
+module.exports = (config) => withBiometric(withSmsReceiver(withRoom(with64BitOnly(withFileProvider(withPackageRegistered(withJavaSources(config)))))))

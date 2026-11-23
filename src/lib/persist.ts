@@ -169,10 +169,33 @@ export function settleNew(newTxs: Tx[], groups: Group[], merges: Merge[]): { txs
   return { txs, merges: merges.map((m) => (extra.has(m.id) ? { ...m, txIds: [...m.txIds, ...extra.get(m.id)!] } : m)) }
 }
 
-/** The pilot measure: manual fixes not cancelled by an Undo. Merges and named codes do not count. */
+/**
+ * The pilot measure: manual fixes not cancelled by an Undo. Merges and named codes do not count.
+ * An Undo can itself be undone (a merge split, then joined again); then the fix counts again.
+ */
 export function countManualFixes(changes: GroupChange[]): number {
-  const undone = new Set(changes.filter((c) => c.kind === 'undo' && c.undoes).map((c) => c.undoes))
+  const undone = new Set<string>()
+  // An Undo is always recorded after what it cancels, so the newest ones are settled first.
+  for (let i = changes.length - 1; i >= 0; i--) {
+    const c = changes[i]
+    if (c.kind === 'undo' && c.undoes && !undone.has(c.id)) undone.add(c.undoes)
+  }
   return changes.filter((c) => c.kind === 'manual' && !undone.has(c.id)).length
+}
+
+/**
+ * Takes back naming a code that had no waiting group. What naming moved goes back where it was.
+ * Payments a check added through that code since then (not in `before`) go to `lateTo`.
+ */
+export function undoNaming<T extends { id: string; groupId: string; reference: string | null }>(
+  txs: T[],
+  o: { code: string; to: string; moved: { id: string; from: string }[]; lateTo: string; before: Set<string> },
+): T[] {
+  const from = new Map(o.moved.map((m) => [m.id, m.from]))
+  return txs.map((t) => {
+    const back = from.get(t.id) ?? (!o.before.has(t.id) && t.groupId === o.to && t.reference?.trim() === o.code ? o.lateTo : t.groupId)
+    return back === t.groupId ? t : { ...t, groupId: back }
+  })
 }
 
 type LaunchPhase = { kind: 'onboarding'; step: 'welcome' | 'complete' } | { kind: 'locked'; step: 'lock' } | { kind: 'app' }

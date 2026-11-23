@@ -19,21 +19,21 @@ import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 
+import com.aucourant.parser.MomoSenders;
 import com.aucourant.parser.ParsedSms;
 import com.aucourant.parser.ParserRegistry;
 import com.aucourant.sorting.Model;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * SMS intake, inbox scan half (architecture.md part 1).
  *
  * Reads raw MoMo messages, and parses message bodies with the parser registry in
- * com.aucourant.parser (MTN templates, several still provisional). The live BroadcastReceiver for new SMS
- * is also still to come; until then a rescan recovers anything missed, since the
- * transaction ID makes imports idempotent.
+ * com.aucourant.parser (MTN templates, several still provisional). SmsReceiver handles messages as
+ * they arrive; anything it misses is found by the next scan, since the transaction ID makes imports
+ * idempotent.
  *
  * The permission prompt itself is shown from JS (PermissionsAndroid).
  */
@@ -56,22 +56,19 @@ public class SmsModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * @param senders     sender IDs to keep (case-insensitive, e.g. "MobileMoney"); empty keeps all
      * @param sinceMillis only messages at or after this time; 0 for the whole inbox
-     * @return array of { id, address, body, date } (date in epoch millis), newest first
+     * @return MoMo messages as an array of { id, address, body, date } (date in epoch millis), newest first
      */
     @ReactMethod
-    public void readInbox(ReadableArray senders, double sinceMillis, Promise promise) {
+    public void readInbox(double sinceMillis, Promise promise) {
         if (!granted(getReactApplicationContext())) {
             promise.reject("E_PERMISSION", "Message access is off.");
             return;
         }
-        List<String> keep = new ArrayList<>();
-        if (senders != null) for (int i = 0; i < senders.size(); i++) keep.add(senders.getString(i));
         new Thread(() -> {
             try {
                 WritableArray out = Arguments.createArray();
-                for (Model.Sms sms : readInbox(getReactApplicationContext(), keep, (long) sinceMillis)) {
+                for (Model.Sms sms : readInbox(getReactApplicationContext(), (long) sinceMillis)) {
                     WritableMap m = Arguments.createMap();
                     m.putString("id", sms.id);
                     m.putString("address", sms.address);
@@ -87,12 +84,11 @@ public class SmsModule extends ReactContextBaseJavaModule {
     }
 
     /**
-     * The inbox read shared with StoreModule's scan. Call off the main thread.
+     * The inbox read shared with StoreModule's scan and SmsReceiver. Call off the main thread.
      *
-     * @param senders sender IDs to keep (case-insensitive); empty keeps all
-     * @return messages at or after `sinceMillis`, newest first
+     * @return MoMo messages (MomoSenders) at or after `sinceMillis`, newest first
      */
-    static List<Model.Sms> readInbox(Context context, List<String> senders, long sinceMillis) {
+    static List<Model.Sms> readInbox(Context context, long sinceMillis) {
         Uri inbox = Telephony.Sms.Inbox.CONTENT_URI;
         String[] cols = {Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE};
         String where = Telephony.Sms.DATE + " >= ?";
@@ -102,7 +98,7 @@ public class SmsModule extends ReactContextBaseJavaModule {
             if (c != null) {
                 while (c.moveToNext()) {
                     String address = c.getString(1);
-                    if (!keep(senders, address)) continue;
+                    if (!MomoSenders.matches(address)) continue;
                     Model.Sms sms = new Model.Sms();
                     sms.id = c.getString(0);
                     sms.address = address;
@@ -180,13 +176,5 @@ public class SmsModule extends ReactContextBaseJavaModule {
     static boolean granted(Context context) {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS)
                 == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private static boolean keep(List<String> senders, String address) {
-        if (senders.isEmpty()) return true;
-        if (address == null) return false;
-        String a = address.toLowerCase(Locale.ROOT);
-        for (String s : senders) if (s != null && a.contains(s.toLowerCase(Locale.ROOT))) return true;
-        return false;
     }
 }

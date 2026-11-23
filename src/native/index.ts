@@ -7,6 +7,7 @@
  */
 import { AppState, NativeModules, PermissionsAndroid, Platform } from 'react-native'
 import Constants, { ExecutionEnvironment } from 'expo-constants'
+import type { ReportFormat } from '../lib/report'
 
 /**
  * True inside Expo Go. Expo Go has none of AuCourant's Java modules and does not declare the
@@ -27,22 +28,28 @@ function mod<T>(name: string): T {
   return m
 }
 
-export const hasNative = (name: 'AuCourantExport' | 'AuCourantLock' | 'AuCourantSms') => !!NativeModules[name]
+export const hasNative = (name: 'AuCourantExport' | 'AuCourantLock' | 'AuCourantSms' | 'AuCourantFingerprint') => !!NativeModules[name]
 
 // ---- Export (ExportModule.java) -------------------------------------------------
 
 type ExportNative = {
-  writeReport(fileName: string, content: string, encoding: 'utf8' | 'latin1'): Promise<string>
+  writeReport(fileName: string, content: string, encoding: 'utf8' | 'latin1' | 'base64'): Promise<string>
   shareFile(path: string, mimeType: string, title: string): Promise<boolean>
   openFile(path: string, mimeType: string): Promise<boolean>
 }
 
 export type ReportFile = { path: string; name: string; mimeType: string }
 
+const FILES = {
+  pdf: { mimeType: 'application/pdf', encoding: 'latin1' },
+  xlsx: { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', encoding: 'base64' },
+  csv: { mimeType: 'text/csv', encoding: 'utf8' },
+} as const
+
 export const ExportNative = {
-  async write(name: string, content: string, format: 'pdf' | 'csv'): Promise<ReportFile> {
-    const mimeType = format === 'pdf' ? 'application/pdf' : 'text/csv'
-    const path = await mod<ExportNative>('AuCourantExport').writeReport(name, content, format === 'pdf' ? 'latin1' : 'utf8')
+  async write(name: string, content: string, format: ReportFormat): Promise<ReportFile> {
+    const { mimeType, encoding } = FILES[format]
+    const path = await mod<ExportNative>('AuCourantExport').writeReport(name, content, encoding)
     return { path, name, mimeType }
   },
   share: (f: ReportFile) => mod<ExportNative>('AuCourantExport').shareFile(f.path, f.mimeType, f.name),
@@ -66,6 +73,34 @@ export const LockNative = {
   hash: (secret: string) => mod<LockNative>('AuCourantLock').hashSecret(secret),
   verify: (secret: string, h: SecretHash) => mod<LockNative>('AuCourantLock').verifySecret(secret, h.hash, h.salt),
   recoveryCode: () => mod<LockNative>('AuCourantLock').makeRecoveryCode(),
+}
+
+// ---- Fingerprint (FingerprintModule.java) ---------------------------------------
+
+/** `none`: no fingerprint is saved on the phone. */
+export type FingerprintStatus = 'ready' | 'none' | 'unavailable'
+/**
+ * `locked`: too many wrong fingers. `changed`: the phone's fingerprints changed since it was turned
+ * on, so it has to be turned on again.
+ */
+export type FingerprintResult = 'ok' | 'cancelled' | 'locked' | 'none' | 'changed' | 'unavailable'
+
+type FingerprintNative = {
+  status(): Promise<FingerprintStatus>
+  enable(title: string, cancel: string): Promise<FingerprintResult>
+  check(title: string, cancel: string): Promise<FingerprintResult>
+  disable(): Promise<void>
+}
+
+const fingerprintMod = () => mod<FingerprintNative>('AuCourantFingerprint')
+export const FingerprintNative = {
+  status: async (): Promise<FingerprintStatus> => (hasNative('AuCourantFingerprint') ? fingerprintMod().status() : 'unavailable'),
+  /** Asks for a fingerprint once, then ties unlocking to the fingerprints on the phone now. */
+  enable: () => fingerprintMod().enable('Turn on fingerprint', 'Cancel'),
+  check: () => fingerprintMod().check('Unlock AuCourant', 'Use PIN or password'),
+  disable: async () => {
+    if (hasNative('AuCourantFingerprint')) await fingerprintMod().disable()
+  },
 }
 
 // ---- SMS (SmsModule.java) -------------------------------------------------------
@@ -94,12 +129,9 @@ export type ParsedSms = {
 
 type SmsNative = {
   hasPermission(): Promise<boolean>
-  readInbox(senders: string[], sinceMillis: number): Promise<RawSms[]>
+  readInbox(sinceMillis: number): Promise<RawSms[]>
   parseMessages(bodies: string[]): Promise<ParsedSms[]>
 }
-
-/** Provisional sender IDs for MTN MoMo. Confirm against real phones (architecture spike 2). */
-export const MOMO_SENDERS = ['MobileMoney', 'MTN MoMo', 'MTNMoMo']
 
 export type SmsPermission = 'granted' | 'denied' | 'never_ask_again' | 'unavailable'
 
@@ -146,7 +178,8 @@ export const SmsNative = {
       clearTimeout(timer)
     }
   },
-  readInbox: (sinceMillis = 0, senders = MOMO_SENDERS) => mod<SmsNative>('AuCourantSms').readInbox(senders, sinceMillis),
+  /** MoMo messages only: the sender IDs are in MomoSenders.java. */
+  readInbox: (sinceMillis = 0) => mod<SmsNative>('AuCourantSms').readInbox(sinceMillis),
   /** Parses bodies with the Java MTN templates. Nothing is stored. */
   parse: (bodies: string[]) => mod<SmsNative>('AuCourantSms').parseMessages(bodies),
 }

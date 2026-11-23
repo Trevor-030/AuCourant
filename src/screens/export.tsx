@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native'
 import { EXPORT_FIELDS, type ExportField } from '../lib/data'
 import { statsOf, useApp } from '../lib/store'
 import { money, plural } from '../lib/format'
-import { buildCsv, buildPdf, fileBase } from '../lib/report'
+import { buildCsv, buildPdf, buildXlsx, fileBase } from '../lib/report'
 import { ExportNative, NativeMissingError, type ReportFile } from '../native'
 import { RADIUS, makeStyles, useTheme } from '../theme'
 import { AppBar, Button, CheckRow, Divided, ErrorBox, InlineError, RadioRow, Surface, SwitchRow, T } from '../ui/kit'
@@ -47,7 +47,7 @@ export function Export() {
       if (demo === 'error') throw new Error('demo')
       const ctx = { title: service.title, dateLabel: service.dateLabel, txs: list, fields, groupName }
       const name = `${fileBase(ctx)}.${p.format}`
-      const content = p.format === 'pdf' ? buildPdf(ctx) : buildCsv(ctx)
+      const content = p.format === 'pdf' ? buildPdf(ctx) : p.format === 'xlsx' ? buildXlsx(ctx) : buildCsv(ctx)
       setFile(await ExportNative.write(name, content, p.format))
       setStatus('done')
     } catch (e) {
@@ -140,7 +140,8 @@ export function Export() {
               <View accessibilityRole="radiogroup" accessibilityLabel="Format">
                 <Divided>
                   <RadioRow checked={p.format === 'pdf'} onSelect={() => set({ format: 'pdf' })} label="PDF" sub="Ready to print or share" />
-                  <RadioRow checked={p.format === 'csv'} onSelect={() => set({ format: 'csv' })} label="Excel (CSV)" sub="Opens in Excel or Google Sheets" />
+                  <RadioRow checked={p.format === 'xlsx'} onSelect={() => set({ format: 'xlsx' })} label="Excel" sub="Opens in Excel or Google Sheets, with totals" />
+                  <RadioRow checked={p.format === 'csv'} onSelect={() => set({ format: 'csv' })} label="CSV" sub="A plain table for other apps" />
                 </Divided>
               </View>
             </Surface>

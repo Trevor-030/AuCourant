@@ -14,7 +14,7 @@ require.extensions['.ts'] = (module, filename) => {
   module._compile(outputText, filename)
 }
 
-const { diffRows, createSaveQueue, mergeScan, settleNew, countManualFixes, launchPhase } = require(path.join(__dirname, '..', 'src', 'lib', 'persist.ts'))
+const { diffRows, createSaveQueue, mergeScan, settleNew, countManualFixes, launchPhase, undoNaming } = require(path.join(__dirname, '..', 'src', 'lib', 'persist.ts'))
 
 let passed = 0
 const failures = []
@@ -151,6 +151,30 @@ async function main() {
   check('fixes: a move counts', countManualFixes([move]), 1)
   check('fixes: a move and its Undo cancel out', countManualFixes([move, undo]), 0)
   check('fixes: a confirmed merge does not count', countManualFixes([confirmed]), 0)
+  // Splitting a merge and taking the split back leaves the merge in effect, so the fix counts again.
+  const hand = { id: 'c:m1', txId: '', fromGroupId: 'g1', toGroupId: 'g2', at: 1, kind: 'manual', undoes: null }
+  const split = { id: 'c5', txId: '', fromGroupId: 'g2', toGroupId: 'g1', at: 2, kind: 'undo', undoes: 'c:m1' }
+  const unsplit = { id: 'c6', txId: '', fromGroupId: 'g1', toGroupId: 'g2', at: 3, kind: 'undo', undoes: 'c5' }
+  const again = { id: 'c7', txId: '', fromGroupId: 'g2', toGroupId: 'g1', at: 4, kind: 'undo', undoes: 'c:m1' }
+  check('fixes: an Undo that was undone no longer cancels', countManualFixes([hand, split, unsplit]), 1)
+  check('fixes: splitting it again cancels it', countManualFixes([hand, split, unsplit, again]), 0)
+
+  // ---- Undo of naming a code, with payments a check added meanwhile ---------------------
+  const named = [
+    { id: 't:1', groupId: 'g-new', reference: '5' },
+    { id: 't:2', groupId: 'g-new', reference: '5' },
+    { id: 't:3', groupId: 'g-new', reference: 'Welfare' },
+    { id: 't:4', groupId: 'g-other', reference: '5' },
+  ]
+  const undone = undoNaming(named, { code: '5', to: 'g-new', moved: [{ id: 't:1', from: 'noref' }], lateTo: 'code-5', before: new Set(['t:1', 't:3']) })
+  check('undoNaming: what naming moved goes back', undone.find((t) => t.id === 't:1').groupId, 'noref')
+  check('undoNaming: a payment that came in meanwhile goes to the late group', undone.find((t) => t.id === 't:2').groupId, 'code-5')
+  check('undoNaming: a payment with another reference stays', undone.find((t) => t.id === 't:3').groupId, 'g-new')
+  check('undoNaming: a payment in another group stays', undone.find((t) => t.id === 't:4').groupId, 'g-other')
+  const there = [{ id: 't:7', groupId: 'g-new', reference: '5' }]
+  check('undoNaming: a payment already there before naming stays', undoNaming(there, { code: '5', to: 'g-new', moved: [], lateTo: 'code-5', before: new Set(['t:7']) })[0].groupId, 'g-new')
+  const zero = [{ id: 't:8', groupId: 'g-new', reference: ' 5 ' }]
+  check('undoNaming: spaces around the code do not matter', undoNaming(zero, { code: '5', to: 'g-new', moved: [], lateTo: 'code-5', before: new Set() })[0].groupId, 'code-5')
 }
 
 main()

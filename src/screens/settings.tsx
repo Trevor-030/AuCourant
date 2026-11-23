@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, View } from 'react-native'
 import Constants from 'expo-constants'
 import { useApp, type Demo, type Motion, type SessionDraft } from '../lib/store'
@@ -10,7 +10,7 @@ import { Body, Footer } from '../ui/layout'
 import { Dialog, Sheet } from '../ui/overlays'
 import { DateField, PickerField, TimeField } from '../ui/pickers'
 import { NativeMissingError, SmsNative, type ParsedType } from '../native'
-import { lockTypeLabel } from './lock'
+import { FINGERPRINT_SAYS, lockTypeLabel } from './lock'
 import { UseTypeSheet, useTypeLabel } from './usetype'
 
 function Caret() {
@@ -19,9 +19,26 @@ function Caret() {
 }
 
 export function Settings() {
-  const { back, push, themePref, setThemePref, lock, setFingerprint, weekly, eraseAll, codes, pendingCodes, useType, rules, dataSource } = useApp()
+  const { back, push, themePref, setThemePref, lock, setFingerprint, fingerprintStatus, notify, weekly, eraseAll, codes, pendingCodes, useType, rules, dataSource } = useApp()
   const [del, setDel] = useState(false)
   const [usedFor, setUsedFor] = useState(false)
+  /** The switch shows only on phones that can use it, or where it is on and may need turning off. */
+  const [hasReader, setHasReader] = useState(false)
+  useEffect(() => {
+    let alive = true
+    fingerprintStatus().then((st) => alive && setHasReader(st !== 'unavailable'))
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const switchFingerprint = (on: boolean) =>
+    setFingerprint(on)
+      .then((r) => {
+        const says = FINGERPRINT_SAYS[r]
+        if (says) notify(says)
+      })
+      .catch(() => notify(`Could not turn ${on ? 'on' : 'off'} fingerprint. Try again.`))
   const org = useType === 'organisation'
   const personal = useType === 'personal'
   return (
@@ -66,7 +83,14 @@ export function Settings() {
                 <>
                   <Row title="Lock type" sub={lockTypeLabel(lock.type)} trailing={<Caret />} onPress={() => push({ name: 'lock-change' })} />
                   <Row title="Change PIN or password" trailing={<Caret />} onPress={() => push({ name: 'lock-change' })} />
-                  <SwitchRow label="Use fingerprint" sub="Your PIN or password still works." checked={lock.fingerprint} onChange={(v) => setFingerprint(v).catch(() => {})} />
+                  {(hasReader || lock.fingerprint) && (
+                    <SwitchRow
+                      label="Use fingerprint"
+                      sub="Works for every fingerprint saved on this phone. Your PIN or password still works."
+                      checked={lock.fingerprint}
+                      onChange={switchFingerprint}
+                    />
+                  )}
                 </>
               ) : (
                 <Row title="Set up lock" sub="The app opens without a lock now." trailing={<Caret />} onPress={() => push({ name: 'lock-change' })} />

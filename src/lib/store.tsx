@@ -25,6 +25,7 @@ import { codeDoubt, NO_REFERENCE, type CodeName } from './inbox'
 import { createSaveQueue, launchPhase, mergeScan, settleNew, undoNaming, type GroupChange } from './persist'
 import { usePersonalState, type PExportPrefs } from './personal'
 import { DEFAULT_CATEGORIES, type Category, type CategoryRule, type PTx } from './personal-data'
+import type { PersonMerge } from './personal-merge'
 import type { PeriodId } from './periods'
 import type { ReportFormat } from './report'
 import { StoreNative, type LockCheck, type NativeScanResult, type Snapshot } from '../native/store'
@@ -236,6 +237,7 @@ function useAppState() {
   useSaved('category_rule', personal.rules, true)
   useSaved('nickname', nicknameRows)
   useSaved('group_change', changes)
+  useSaved('person_merge', personal.personMerges, true)
 
   const settings = useMemo(
     () => ({ useType, themePref, exportPrefs, pExportPrefs: personal.pExportPrefs, weekly, onboarded, firstRunCodes, serviceId, periodId: personal.periodId }),
@@ -719,7 +721,7 @@ function useAppState() {
       queue.markSaved('code_entry', cCodes, { replace: true })
       queue.markSaved('personal_tx', cPTxs, { replace: true })
       queue.markSaved('category', categories, { replace: true })
-      for (const t of ['special', 'category_rule', 'nickname', 'group_change']) queue.markSaved(t, [], { replace: true })
+      for (const t of ['special', 'category_rule', 'nickname', 'group_change', 'person_merge']) queue.markSaved(t, [], { replace: true })
       setServiceId('w:' + latestWeekday(phoneToday(), weekly.day))
       setTxFilters({ thisService: true, groupId: null, query: '' })
       setSessionDraft(null)
@@ -784,8 +786,9 @@ function useAppState() {
         categories: get<Category>('category'),
         rules: get<CategoryRule>('category_rule'),
         nicknames: Object.fromEntries(nicknames.map((n) => [n.personKey, n.nickname])),
+        personMerges: get<PersonMerge>('person_merge'),
       })
-      for (const kind of ['church_group', 'merge_record', 'suggestion', 'special', 'code_entry', 'personal_tx', 'category', 'category_rule', 'nickname', 'group_change']) {
+      for (const kind of ['church_group', 'merge_record', 'suggestion', 'special', 'code_entry', 'personal_tx', 'category', 'category_rule', 'nickname', 'group_change', 'person_merge']) {
         queue.markSaved(kind, get<{ id: string }>(kind), { replace: true })
       }
       queue.markSaved('church_tx', txs, { replace: true })

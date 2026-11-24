@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar'
 import { SaveError, useApp, type OnbStep, type Route, type Tab } from './lib/store'
 import { plural } from './lib/format'
 import { SmsNative } from './native'
+import { CrashNative } from './native/crash'
 import { StoreNative } from './native/store'
 import { DURATION, makeStyles, useTheme } from './theme'
 import { T } from './ui/kit'
@@ -389,6 +390,13 @@ export function AppShell() {
   const inApp = phase.kind === 'app'
   const showNav = inApp && NAV_ROUTES.includes(route.name)
   const key = phase.kind === 'app' ? `app:${stack.length}:${route.name}:${'id' in route ? route.id : ''}` : `${phase.kind}:${phase.step}`
+  // Steps for the problem report. The screen's name only: ids can hold phone numbers.
+  const screen = phase.kind === 'app' ? `app ${route.name}` : `${phase.kind} ${phase.step}`
+  useEffect(() => CrashNative.step(`screen ${screen} shown`), [screen])
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => CrashNative.step(`app ${st}`))
+    return () => sub.remove()
+  }, [])
   // The Welcome hero runs edge to edge under the status bar.
   const heroTop = phase.kind === 'onboarding' && phase.step === 'welcome'
 

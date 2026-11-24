@@ -10,7 +10,8 @@
  *   4. builds for 64-bit ARM phones only (founder, 2026-11-21),
  *   5. adds Room (SQLite storage) with its Java annotation processor,
  *   6. declares SmsReceiver, which hears about new SMS,
- *   7. adds AndroidX Biometric (fingerprint unlock).
+ *   7. adds AndroidX Biometric (fingerprint unlock),
+ *   8. declares CrashProvider, which starts the problem recorder before the app.
  */
 const fs = require('fs')
 const path = require('path')
@@ -125,6 +126,18 @@ const withSmsReceiver = (config) =>
     return cfg
   })
 
+/** Starts the problem recorder (CrashLog.java) before the application. Not exported; holds no data. */
+const withCrashProvider = (config) =>
+  withAndroidManifest(config, (cfg) => {
+    const app = AndroidConfig.Manifest.getMainApplicationOrThrow(cfg.modResults)
+    const name = `${PKG}.CrashProvider`
+    app.provider = (app.provider ?? []).filter((p) => p.$['android:name'] !== name)
+    app.provider.push({
+      $: { 'android:name': name, 'android:authorities': '${applicationId}.aucourant.crash', 'android:exported': 'false', 'android:initOrder': '1000' },
+    })
+    return cfg
+  })
+
 /** Fingerprint unlock (FingerprintModule.java). 1.1.0 is the newest stable release (checked 2026-11-22). */
 const BIOMETRIC = '1.1.0'
 const withBiometric = (config) =>
@@ -138,4 +151,4 @@ const withBiometric = (config) =>
     return cfg
   })
 
-module.exports = (config) => withBiometric(withSmsReceiver(withRoom(with64BitOnly(withFileProvider(withPackageRegistered(withJavaSources(config)))))))
+module.exports = (config) => withCrashProvider(withBiometric(withSmsReceiver(withRoom(with64BitOnly(withFileProvider(withPackageRegistered(withJavaSources(config))))))))

@@ -16,12 +16,12 @@ const MAX_BARS = 6
 export function PersonalHome() {
   const s = useStyles()
   const { c } = useTheme()
-  const { demo, period, pTxsIn, periodId, unread, push, setTab, setPFilters, categoryName, pTxs } = useApp()
+  const { demo, period, pTxsIn, periodId, unread, push, setTab, setPFilters, categoryName, pTxs, refunds } = useApp()
   const [picker, setPicker] = useState(false)
   const periodTarget = useCoachTarget('service')
   const reviewTarget = useCoachTarget('review')
   const list = pTxsIn(periodId)
-  const tot = totalsOf(list)
+  const tot = totalsOf(list, refunds)
   const uncategorised = list.filter((t) => !t.categoryId).length
   const attention = uncategorised + unread.length
 

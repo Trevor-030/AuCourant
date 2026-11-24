@@ -8,9 +8,16 @@ import java.util.Locale;
  */
 public final class MomoSenders {
     /** Lower case. A message counts when its sender contains one of these. */
-    private static final String[] SENDERS = {"mobilemoney", "mtn momo", "mtnmomo"};
+    /** Telecel Cash, as a real phone shows it (2026-11-24). */
+    private static final String TELECEL = "t-cash";
+    private static final String[] SENDERS = {"mobilemoney", "mtn momo", "mtnmomo", TELECEL};
 
     private MomoSenders() {
+    }
+
+    /** True for Telecel Cash messages; every other MoMo sender is MTN. */
+    public static boolean telecel(String address) {
+        return address != null && address.toLowerCase(Locale.ROOT).contains(TELECEL);
     }
 
     public static boolean matches(String address) {

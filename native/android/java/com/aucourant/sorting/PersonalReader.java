@@ -59,6 +59,7 @@ public final class PersonalReader {
             String phone = blank(p.counterpartyNumber) ? null : Text.formatPhone(p.counterpartyNumber);
             String personKey;
             String reference = "NONE".equals(p.referenceKind) ? null : p.reference;
+            String refundOf = null;
             if ("airtime".equals(kind)) {
                 // The user's own top-ups are one "person", not the number that was topped up.
                 name = r.sms.body.toLowerCase(Locale.ROOT).contains("data bundle") ? "Data bundle" : "Airtime";
@@ -75,6 +76,7 @@ public final class PersonalReader {
                 name = original != null ? original.name : "Reversal";
                 phone = original != null ? original.phone : null;
                 personKey = original != null ? original.personKey : "m:reversal";
+                refundOf = original != null ? original.id : null;
             } else {
                 name = !blank(p.counterpartyName) ? Text.titleCase(p.counterpartyName) : phone != null ? phone : "Unknown";
                 personKey = Text.personKeyOf(phone, name);
@@ -95,6 +97,7 @@ public final class PersonalReader {
             t.time = s[1];
             t.txId = p.txId == null ? "" : p.txId;
             t.raw = r.sms.body;
+            t.refundOf = refundOf;
             if (!"reversal".equals(kind) && !t.txId.isEmpty()) byTxId.put(t.txId, t);
             out.add(t);
         }

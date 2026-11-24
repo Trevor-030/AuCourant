@@ -203,7 +203,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
             List<Model.Row> rows = new ArrayList<>();
             progress(0, inbox.size());
             for (Model.Sms sms : inbox) {
-                rows.add(new Model.Row(sms, SmsModule.parsedOf(ParserRegistry.mtn().parse(sms.body))));
+                rows.add(new Model.Row(sms, SmsModule.parsedOf(ParserRegistry.forSender(sms.address).parse(sms.body))));
                 if (rows.size() % PROGRESS_EVERY == 0) progress(rows.size(), inbox.size());
             }
             progress(rows.size(), inbox.size());
@@ -240,7 +240,7 @@ public class StoreModule extends ReactContextBaseJavaModule {
             if (resume == null) return null;
             List<Model.Row> rows = new ArrayList<>();
             for (Model.Sms sms : SmsModule.readInbox(context, Math.max(0, resume.newestSms - OVERLAP_MS))) {
-                rows.add(new Model.Row(sms, SmsModule.parsedOf(ParserRegistry.mtn().parse(sms.body))));
+                rows.add(new Model.Row(sms, SmsModule.parsedOf(ParserRegistry.forSender(sms.address).parse(sms.body))));
             }
             Scanner.scan(db, rows, resume.opts);
             return null;

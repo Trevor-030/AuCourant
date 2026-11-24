@@ -127,7 +127,7 @@ The **transaction ID is the unique key.** Importing the same SMS twice does noth
 
 ## Missing pieces
 
-- **More real SMS samples** when available: Telecel, AirtelTigo, messy typed references, and **a payment with a number as the reference**. The MVP supports **MTN only**, built from the samples already collected.
+- **More real SMS samples** when available: Telecel, AirtelTigo, messy typed references, and **a payment with a number as the reference**. The MVP supports **MTN**, built from the samples already collected, and **Telecel Cash received money** (sender `T-CASH`, one real sample, 2026-11-24). No AirtelTigo sample yet.
 - A backup file for groups, merges, reference codes and sessions, so the last-resort erase costs less. Deferred, not in the MVP.
 - **Storage is built (2026-11-21)**, design in `docs/superpowers/specs/2026-11-21-room-storage-design.md`. Room holds every list and setting; the grouping rules above run in Java (`native/android/java/com/aucourant/sorting`), and a scan reads, sorts and saves in one transaction. Edits stay in TypeScript and are saved through a queue. The lock is wired to hashes in Room.
 - **Scan crash on a real phone, fixed (2026-11-24):** the first run (EAS preview APK, 2026-11-22) closed during the scan. `sorting/Text.java` compiled its patterns with a regex flag Android rejects and the desktop JDK accepts, so `npm run test:inbox` and the other JDK checks passed. Found with a debug build over wireless adb; `npm run test:parser` now fails on such flags. The preview build from `56448f1` scanned on the phone without a crash. Room and the bridge are still only checked on a phone (checklist in `docs/superpowers/plans/2026-11-21-room-storage.md`, Task 9).
@@ -181,7 +181,7 @@ Decision rule: keep fingerprint as optional if it works; PIN stays the guarantee
 
 - **First run asks for reference numbers** before the scan (optional, skippable), so fewer payments wait in unnamed code groups.
 - **Reports:** layout is not fixed because each leader chooses. One default report plus a choice of fields. Saved layouts later.
-- **Other networks:** Telecel and AirtelTigo messages are tried with the MTN template for now. Anything it cannot read goes to *Not read*. They are not promised as supported.
+- **Other networks:** the templates are chosen by sender (`ParserRegistry.forSender`), so one network's wording is never read as another's. Telecel Cash (`T-CASH`) has a template for received money only; its other messages go to *Not read* until samples exist. AirtelTigo is not read at all: its sender is not known yet.
 - **Use type:** first run asks Church or Organisation. Personal shows as coming soon. It is a setting that changes wording and built-in known pairs only.
 - **Number references:** a per-church code book (code to group name). Numbers mean the same thing every week, but different churches use different numbers, so the book starts empty and is filled by naming codes as they first appear, or by adding them in Settings.
 - A code is 1 to 6 digits, leading zeros ignored. A code with words ("1 offering") uses the words.

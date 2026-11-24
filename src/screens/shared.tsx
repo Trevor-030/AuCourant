@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { View } from 'react-native'
 import type { Tx } from '../lib/data'
 import { useApp } from '../lib/store'
-import { longDate, money, normalize } from '../lib/format'
+import { longDate, money } from '../lib/format'
 import { makeStyles } from '../theme'
 import { Button, Divided, RadioRow, Surface, T, TextField } from '../ui/kit'
 import { Sheet } from '../ui/overlays'
@@ -107,10 +107,7 @@ export function ChangeGroupSheet({ txId, onClose }: { txId: string | null; onClo
   )
 }
 
-export function matches(q: string, ...fields: (string | null | undefined)[]) {
-  const n = normalize(q)
-  return !n || fields.some((f) => f && normalize(f).includes(n))
-}
+export { matches } from '../lib/search'
 
 const useStyles = makeStyles((c) => ({
   dayHeader: {

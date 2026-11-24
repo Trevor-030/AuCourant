@@ -1,15 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pressable, ScrollView, View } from 'react-native'
 import { useApp } from '../../lib/store'
 import { CLEAR_PFILTERS, type PFilters } from '../../lib/personal'
-import { KIND_LABEL } from '../../lib/personal-data'
+import { KIND_LABEL, type PTx } from '../../lib/personal-data'
 import { longDate, money, plural } from '../../lib/format'
 import { RADIUS, makeStyles, useTheme } from '../../theme'
-import { AppBar, Button, Chip, Divided, EmptyState, Expandable, Field, RadioRow, SearchField, SectionLabel, Skel, SkeletonRows, Surface, T } from '../../ui/kit'
+import { AppBar, Button, Chip, Divided, EmptyState, Expandable, Field, RadioRow, Row, SearchField, SectionLabel, Skel, SkeletonRows, Surface, T } from '../../ui/kit'
 import { CaretRightIcon, FunnelIcon, ReceiptIcon, UsersIcon } from '../../ui/icons'
 import { Body } from '../../ui/layout'
 import { Sheet } from '../../ui/overlays'
-import { pTxMatches } from '../../lib/search'
+import { matches, pTxMatches } from '../../lib/search'
 import { CategorySheet, PDayHeader, PTxRow, PeriodSheet, pByDay, signed } from './shared'
 
 const PAGE = 50
@@ -162,8 +162,9 @@ export function PersonalTransactions() {
 export function PersonalTxDetail({ id }: { id: string }) {
   const s = useStyles()
   const { c } = useTheme()
-  const { allPTxs, back, push, personName, categoryName } = useApp()
+  const { allPTxs, back, push, personName, categoryName, refunds, setRefundOf } = useApp()
   const [change, setChange] = useState(false)
+  const [picking, setPicking] = useState(false)
   const t = allPTxs.find((x) => x.id === id)
   if (!t) {
     return (
@@ -177,6 +178,11 @@ export function PersonalTxDetail({ id }: { id: string }) {
   const cat = categoryName(t.categoryId)
   const how =
     t.catSource === 'person' ? `Set by your rule for ${who}.` : t.catSource === 'word' ? 'Set by a word rule.' : t.catSource === 'type' ? `Set from the payment type.` : t.catSource === 'manual' ? 'You chose this.' : 'Choose one so this payment counts in your totals.'
+  const refundOfTx = t.refundOf ? allPTxs.find((x) => x.id === t.refundOf) : undefined
+  const givenBack = allPTxs.filter((x) => x.refundOf === t.id)
+  const refunded = refunds.get(t.id) ?? 0
+  // A reversal is linked by the scan; any other money in can be marked by hand.
+  const canMarkRefund = t.direction === 'in' && t.kind !== 'reversal'
 
   return (
     <>
@@ -225,6 +231,35 @@ export function PersonalTxDetail({ id }: { id: string }) {
             </Field>
           </Surface>
         </View>
+
+        {(refundOfTx || t.refundOf || givenBack.length > 0 || canMarkRefund) && (
+          <View style={{ marginTop: 24 }}>
+            <SectionLabel>Refund</SectionLabel>
+            <Surface divided>
+              {refundOfTx && (
+                <Row
+                  title={`Refund of ${personName(refundOfTx.personKey)}, ${longDate(refundOfTx.date)}`}
+                  sub={`${money(refundOfTx.amount)} paid. A refund does not count as money in.`}
+                  onPress={() => push({ name: 'tx', id: refundOfTx.id })}
+                />
+              )}
+              {givenBack.map((r) => (
+                <Row key={r.id} title={`${money(r.amount)} back on ${longDate(r.date)}`} sub={KIND_LABEL[r.kind]} onPress={() => push({ name: 'tx', id: r.id })} />
+              ))}
+              {givenBack.length > 0 && (
+                <Row title={refunded >= t.amount ? 'Refunded' : `Partly refunded, ${money(refunded)} back`} sub="Money out counts only what was not given back." />
+              )}
+              {canMarkRefund && !t.refundOf && <Row title="This is a refund of…" sub="Money given back for a payment you made." onPress={() => setPicking(true)} />}
+              {t.refundOf && (
+                <Row
+                  title="Not a refund"
+                  sub="Count this as money in again."
+                  onPress={() => setRefundOf(t.id, null)}
+                />
+              )}
+            </Surface>
+          </View>
+        )}
 
         <View style={{ marginTop: 24 }}>
           <SectionLabel>{t.phone && t.kind !== 'airtime' ? 'Person' : 'Paid to'}</SectionLabel>
@@ -277,7 +312,45 @@ export function PersonalTxDetail({ id }: { id: string }) {
         </View>
       </Body>
       <CategorySheet txId={change ? id : null} onClose={() => setChange(false)} />
+      <RefundSheet txId={picking ? id : null} onClose={() => setPicking(false)} />
     </>
+  )
+}
+
+/** Money out to pick as the payment a refund gives back: the same person first, then everyone, newest first. */
+function RefundSheet({ txId, onClose }: { txId: string | null; onClose: () => void }) {
+  const { allPTxs, personName, setRefundOf } = useApp()
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    if (txId) setQ('')
+  }, [txId])
+  const t = allPTxs.find((x) => x.id === txId)
+  const newest = (a: PTx, b: PTx) => (b.date + b.time).localeCompare(a.date + a.time)
+  const out = allPTxs.filter((x) => x.direction === 'out' && matches(q, personName(x.personKey), money(x.amount), x.amount.toFixed(2), x.reference))
+  const list = [...out.filter((x) => x.personKey === t?.personKey).sort(newest), ...out.filter((x) => x.personKey !== t?.personKey).sort(newest)].slice(0, 40)
+  return (
+    <Sheet open={txId !== null} onClose={onClose} title="Refund of which payment?">
+      <SearchField label="Search name, amount or note" value={q} onChange={setQ} />
+      <Divided>
+        {list.map((x) => (
+          <Row
+            key={x.id}
+            title={personName(x.personKey)}
+            sub={`${longDate(x.date)} · ${KIND_LABEL[x.kind]}`}
+            end={money(x.amount)}
+            onPress={() => {
+              if (txId) setRefundOf(txId, x.id)
+              onClose()
+            }}
+          />
+        ))}
+      </Divided>
+      {list.length === 0 && (
+        <T v="sec" tone="fg2" style={{ marginTop: 12 }}>
+          No money out matches.
+        </T>
+      )}
+    </Sheet>
   )
 }
 

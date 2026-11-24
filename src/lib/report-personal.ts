@@ -10,6 +10,8 @@ type Ctx = {
   fields: PExportField[]
   categoryName: (id: string | null) => string
   personName: (key: string) => string
+  /** What was given back on each payment (refundsByPayment over all payments). */
+  refunds?: Map<string, number>
 }
 
 const WIDTH: Record<PExportField, number> = {
@@ -55,13 +57,16 @@ function cell(t: PTx, f: PExportField, c: Ctx) {
 
 /** Personal report: totals for the period (no balance), spending by category, then every payment. */
 export function personalTable(c: Ctx): Table {
-  const tot = totalsOf(c.txs)
+  const refunds = c.refunds ?? new Map<string, number>()
+  const tot = totalsOf(c.txs, refunds)
   const byCat = new Map<string, { n: number; sum: number }>()
   for (const t of c.txs) {
-    if (t.direction !== 'out') continue
+    // Spending is what was not given back, as in the totals.
+    const spent = t.direction === 'out' ? Math.max(0, t.amount - (refunds.get(t.id) ?? 0)) : 0
+    if (t.direction !== 'out' || spent === 0) continue
     const name = c.categoryName(t.categoryId)
     const cur = byCat.get(name) ?? { n: 0, sum: 0 }
-    byCat.set(name, { n: cur.n + 1, sum: cur.sum + t.amount })
+    byCat.set(name, { n: cur.n + 1, sum: cur.sum + spent })
   }
   return {
     summary: [

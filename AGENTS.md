@@ -17,13 +17,15 @@ src/screens/                 one file per area (onboarding, home, groups, transa
 src/screens/personal/        Personal views: home, transactions, person, categories, export
 src/ui/                      kit (buttons, rows, fields), overlays (sheet, dialog, snackbar, coach marks), icons
 src/theme/                   colour and type tokens (Midnight Emerald Gold, dark + light), makeStyles
-                             xlsx.ts: Excel files, no library (pure)
-src/native/                  typed bridge to the Java modules; store.ts is StoreModule (load, save, scan, lock)
-native/android/java/...      Java sources: ExportModule, FingerprintModule, LockModule, SmsModule, SmsReceiver, StoreModule
+                             xlsx.ts: Excel files, no library (pure); crash.ts: an error as text (pure)
+src/native/                  typed bridge to the Java modules; store.ts is StoreModule (load, save, scan, lock);
+                             crash.ts records errors and is imported first in index.ts
+native/android/java/...      Java sources: CrashLog, CrashModule, CrashProvider, ExportModule, FingerprintModule, LockModule, SmsModule, SmsReceiver, StoreModule
                              (nativebridge/), MTN parser registry (parser/), sorter (sorting/), wrong-try wait (lock/),
-                             Room storage (store/). parser/, sorting/ and lock/ have no Android imports
-native/android/test/...      plain-JDK checks (no Android, no JUnit): ParserCheck, SortCheck, LockCheck; ParseDump and SortDump for the inbox checks
-scripts/                     test-parser.js, test-inbox.js (via java-sorter.js), test-persist.js and test-report.js (only Node and the JDK)
+                             problem report text (crash/), Room storage (store/). parser/, sorting/, lock/ and crash/ have
+                             no Android imports
+native/android/test/...      plain-JDK checks (no Android, no JUnit): ParserCheck, SortCheck, LockCheck, CrashCheck; ParseDump and SortDump for the inbox checks
+scripts/                     test-parser.js, test-inbox.js (via java-sorter.js), test-persist.js, test-report.js and test-crash.js (only Node and the JDK)
 plugins/with-aucourant-native.js   copies the Java into android/ and registers it on every prebuild; 64-bit (arm64-v8a) only
 assets/                      app icon, adaptive icon layers, splash, favicon (built from assets/brand/svg/app)
 assets/brand/                logo kit: SVG masters and PNG exports. Rules in docs/brand-guidelines.md
@@ -46,9 +48,10 @@ Navigation is a small state machine in `src/lib/store.tsx` (phase: onboarding, l
 - The categoriser exists twice: `Categoriser.java` for new payments, `src/lib/categorise.ts` for edits on screen. `npm run test:inbox` checks they agree; change both together.
 - Saved data: every list in the store is saved through `useSaved` (`src/lib/store.tsx`). A new list that must survive a restart needs a `useSaved` line, a kind in `store/Kinds.java`, and a line in `hydrate`. Sample data and the developer flows are never saved.
 - Dates: use `today` from the store, not the `TODAY` constant. `TODAY` is the sample data's date; with real messages `today` is the phone's date.
-- The `parser/` and `lock/` packages must stay free of Android imports so they can be tested with only the JDK.
+- The `parser/`, `lock/` and `crash/` packages must stay free of Android imports so they can be tested with only the JDK.
 - MoMo sender IDs live only in `parser/MomoSenders.java` (inbox scan and live receiver).
 - Scanning while the screens are running goes through `scanMessages` in the store, because the screens hold edits. `SmsReceiver` scans in Java only when no screens have loaded (`StoreModule.messageArrived`).
+- Problem reports (`CrashLog`): steps and reports hold screen names, counts and errors, never payments, people or message text. `src/screens/problem.tsx` must not use the store, theme, fonts or kit, because any of them may be what failed.
 - Fingerprint opens the app only. Changing the lock or the recovery code always needs the PIN or password.
 
 ## Commands
@@ -57,9 +60,10 @@ Navigation is a small state machine in `src/lib/store.tsx` (phase: onboarding, l
 npx expo run:android        # build and install the dev app (emulator or USB phone), then starts Metro
 npx expo start              # Metro only, for an already installed dev build
 npx tsc --noEmit            # typecheck
-npm run test:parser         # Java parser, sorter and lock checks with only the JDK (uses JAVA_HOME or Android Studio's JBR)
+npm run test:parser         # Java parser, sorter, lock and crash checks with only the JDK (uses JAVA_HOME or Android Studio's JBR)
 npm run test:inbox          # sample SMS text -> Java parser -> Java sorter, checked against the sample data
 npm run test:persist        # the save queue, scan merge and manual-fix count (src/lib/persist.ts)
+npm run test:crash          # JavaScript errors as report text (src/lib/crash.ts)
 npm run test:report         # PDF, CSV and Excel reports (src/lib/report.ts, xlsx.ts)
 npx expo-doctor             # config and dependency checks
 npx expo prebuild --clean   # regenerate android/ after changing app.json or the plugin
@@ -73,7 +77,7 @@ Expo Go cannot run this app: it has its own Java modules. Use a development buil
 
 ## State of the app
 
-The app starts on the prototype's sample data. In a development build, once message access is allowed, the scan step reads, parses, sorts and saves the phone's MoMo messages in Java (`StoreModule.scan`, `store/Scanner.java`, `sorting/`) and replaces the sample data with real payments for both use types (`scanMessages` in the store). Everything is saved in Room (`aucourant.db`): payments, groups, merges, codes, sessions, Personal categories, rules and nicknames, settings, the manual-fix log, and the lock (hashes only). Edits stay in TypeScript and are saved through a queue (`src/lib/persist.ts`); a scan waits for it first. Design: `docs/superpowers/specs/2026-11-21-room-storage-design.md`. Built and checked with `npm run test:*` and a Gradle build. The first run on a phone (EAS preview, 2026-11-22) crashed after the *Scan complete* screen; the cause is not found yet. Expo Go keeps the sample data. `SmsReceiver` hears about new SMS: with the app open it tells the screens, which scan the message in (`useNewMessages` in `src/AppShell.tsx`, which also checks on opening and once a minute); with the app closed it reads, sorts and saves in Java. The app locks again after 5 minutes in the background.
+The app starts on the prototype's sample data. In a development build, once message access is allowed, the scan step reads, parses, sorts and saves the phone's MoMo messages in Java (`StoreModule.scan`, `store/Scanner.java`, `sorting/`) and replaces the sample data with real payments for both use types (`scanMessages` in the store). Everything is saved in Room (`aucourant.db`): payments, groups, merges, codes, sessions, Personal categories, rules and nicknames, settings, the manual-fix log, and the lock (hashes only). Edits stay in TypeScript and are saved through a queue (`src/lib/persist.ts`); a scan waits for it first. Design: `docs/superpowers/specs/2026-11-21-room-storage-design.md`. Built and checked with `npm run test:*` and a Gradle build. The first run on a phone (EAS preview, 2026-11-22) crashed during the scan: `sorting/Text.java` compiled its patterns with a regex flag Android rejects, which the desktop JDK accepts. Fixed 2026-11-24 and checked on a phone with a debug build; `npm run test:parser` now fails on regex flags Android does not support, and `StoreModule.work()` rejects on any Error instead of closing the app. Since 2026-11-23 the app records its own problems (Java, JavaScript, screen errors, and Android's record of native crashes, freezes and memory kills) and shows the report at the next launch, before anything else runs. Expo Go keeps the sample data. `SmsReceiver` hears about new SMS: with the app open it tells the screens, which scan the message in (`useNewMessages` in `src/AppShell.tsx`, which also checks on opening and once a minute); with the app closed it reads, sorts and saves in Java. The app locks again after 5 minutes in the background.
 
 Also real: the Android SMS permission prompt, report files written and shared by `ExportModule`, the lock (PIN or password and recovery code hashed with PBKDF2, checked in Java, 5 wrong tries then a 30 second wait that survives an app restart and does not depend on the phone's clock), fingerprint unlock (`FingerprintModule`, AndroidX Biometric; turns itself off when a fingerprint is added to the phone), PDF, Excel and CSV exports, and the MTN parser registry with reference cleaner (`SmsModule.parseMessages`; sent, merchant, bill, cash out, airtime and reversal templates are provisional). The receiver, fingerprint and Excel export were built on 2026-11-23 and have not been run on a phone. On sample data fingerprint is simulated.
 

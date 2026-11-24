@@ -48,11 +48,15 @@ export function PDayHeader({ day }: { day: PDay }) {
 
 /** One payment: who, when and category, with a signed amount. */
 export function PTxRow({ t, onPress, hidePerson }: { t: PTx; onPress: () => void; hidePerson?: boolean }) {
-  const { personName, categoryName } = useApp()
+  const { personName, categoryName, refunds } = useApp()
+  // A refund, or money out that was given back, says so in the row (totals already leave it out).
+  const back = refunds.get(t.id) ?? 0
+  const tag = t.refundOf ? 'Refund' : back >= t.amount ? 'Refunded' : back > 0 ? 'Partly refunded' : null
+  const sub = [t.time, hidePerson ? null : categoryName(t.categoryId), tag].filter(Boolean).join(' · ')
   return (
     <Row
       title={hidePerson ? categoryName(t.categoryId) : personName(t.personKey)}
-      sub={hidePerson ? t.time : `${t.time} · ${categoryName(t.categoryId)}`}
+      sub={sub}
       end={signed(t)}
       endTone={t.direction === 'in' ? 'accent' : 'fg'}
       onPress={onPress}

@@ -78,10 +78,19 @@ public class StoreModule extends ReactContextBaseJavaModule {
 
     private void work(ExecutorService worker, Promise promise, String code, String message, Job job) {
         worker.execute(() -> {
+            // Steps for the problem report: which call, and how long it took. A step with no end is where it stopped.
+            String call = code.substring(2).toLowerCase(Locale.ROOT);
+            long start = SystemClock.elapsedRealtime();
+            CrashLog.step(call + " started");
             try {
                 promise.resolve(job.run());
-            } catch (Exception e) {
+                CrashLog.step(call + " done in " + (SystemClock.elapsedRealtime() - start) + " ms");
+            } catch (Throwable e) {
+                // Errors too (a class that fails to load is an Error): the screens get a message instead of the app closing.
+                CrashLog.step(call + " failed: " + e.getClass().getSimpleName());
                 promise.reject(code, message, e);
+                // Out of memory and similar leave the process unsafe: still let those reach the crash recorder.
+                if (e instanceof VirtualMachineError) throw (VirtualMachineError) e;
             }
         });
     }

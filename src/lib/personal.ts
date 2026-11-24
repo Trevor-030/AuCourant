@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { categoriseAll } from './categorise'
 import { plural } from './format'
 import { mergeScan } from './persist'
+import { mergeCategories, mergePeople, refundsByPayment, separatePeople, type PersonMerge } from './personal-merge'
 import { periodInfo, type PeriodId } from './periods'
 import type { ReportFormat } from './report'
 import { DEFAULT_CATEGORIES, SEED_RULES, seedPersonalTxs, type Category, type CategoryRule, type Direction, type PTx } from './personal-data'
@@ -31,17 +32,7 @@ export type PExportPrefs = { format: ReportFormat; hideNames: boolean; fields: P
 const DEFAULT_PEXPORT: PExportPrefs = { format: 'pdf', hideNames: false, fields: [...P_EXPORT_FIELDS] }
 
 export type Person = { key: string; name: string; phone: string | null; nickname: string | null }
-export type Totals = { moneyIn: number; moneyOut: number; fees: number; count: number }
-
-export function totalsOf(list: PTx[]): Totals {
-  const t = { moneyIn: 0, moneyOut: 0, fees: 0, count: list.length }
-  for (const x of list) {
-    if (x.direction === 'in') t.moneyIn += x.amount
-    else t.moneyOut += x.amount
-    t.fees += x.fee
-  }
-  return t
-}
+export { totalsOf, type Totals } from './personal-merge'
 
 function seed() {
   return { txs: categoriseAll(seedPersonalTxs(), SEED_RULES), rules: [...SEED_RULES], categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })) }
@@ -60,12 +51,15 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   latestRules.current = rules
   const [allCategories, setCategories] = useState<Category[]>(initial.categories)
   const [nicknames, setNicknames] = useState<Record<string, string>>({})
+  const [personMerges, setPersonMerges] = useState<PersonMerge[]>([])
   // Remembered between visits (architecture-personal.md, Settings).
   const [periodId, setPeriodId] = useState<PeriodId>('month')
   const [pFilters, setPFilters] = useState<PFilters>(CLEAR_PFILTERS)
   const [pExportPrefs, setPExportPrefs] = useState<PExportPrefs>(DEFAULT_PEXPORT)
 
   const pTxs = empty ? [] : allPTxs
+  /** What has been given back on each payment, from every payment, so totals in any period net it off. */
+  const refunds = useMemo(() => refundsByPayment(pTxs), [pTxs])
   const period = periodInfo(periodId, today)
   const pTxsIn = useCallback((id: PeriodId) => {
     const p = periodInfo(id, today)
@@ -209,11 +203,77 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   }
 
   /** What was saved on this phone, at launch. */
-  const hydratePersonal = (saved: { pTxs: PTx[]; categories: Category[]; rules: CategoryRule[]; nicknames: Record<string, string> }) => {
+  // ---- Merging people and categories, refunds (docs/superpowers/specs/2026-11-24-personal-merge-design.md)
+
+  /** Person `fromKey` becomes `toKey`, shown as `keepName`. New messages from either number follow (the scan reads the record). */
+  const mergePerson = (fromKey: string, toKey: string, keepName: string) => {
+    if (fromKey === toKey) return
+    const fromName = personName(fromKey)
+    const moved = allPTxs.filter((t) => t.personKey === fromKey)
+    const prevRules = rules
+    const prevNicknames = nicknames
+    const s = mergePeople({ txs: allPTxs, rules, nicknames }, { id: 'pm' + Date.now(), fromKey, toKey, keepName, date: today })
+    setPTxs(s.txs)
+    setRules(s.rules)
+    setNicknames(s.nicknames)
+    setPersonMerges((ms) => [s.record, ...ms])
+    notify(`Merged ${fromName} into ${keepName}.`, {
+      label: 'Undo',
+      run: () => {
+        restore(moved)
+        setRules(prevRules)
+        setNicknames(prevNicknames)
+        setPersonMerges((ms) => ms.filter((m) => m.id !== s.record.id))
+      },
+    })
+  }
+
+  /** Undoes a person merge, any time later. */
+  const separatePerson = (recordId: string) => {
+    const r = personMerges.find((m) => m.id === recordId)
+    if (!r) return
+    const s = separatePeople({ txs: allPTxs, rules, nicknames }, r)
+    setPTxs(s.txs)
+    setNicknames(s.nicknames)
+    setPersonMerges((ms) => ms.filter((m) => m.id !== recordId))
+    notify(`Separated ${personName(r.fromKey)} again.`)
+  }
+
+  /** Category `fromId` goes into `toId`; built-in categories cannot be merged away. Undo only from the message. */
+  const mergeCategory = (fromId: string, toId: string) => {
+    const s = mergeCategories({ txs: allPTxs, rules, categories: allCategories }, fromId, toId)
+    if (!s) return
+    const moved = allPTxs.filter((t) => t.categoryId === fromId)
+    const prevRules = rules
+    const prevCategories = allCategories
+    const fromName = categoryName(fromId)
+    setPTxs(s.txs)
+    setRules(s.rules)
+    setCategories(s.categories)
+    notify(`Merged ${fromName} into ${categoryName(toId)}.`, {
+      label: 'Undo',
+      run: () => {
+        setCategories(prevCategories)
+        setRules(prevRules)
+        restore(moved)
+      },
+    })
+  }
+
+  /** Marks money received as giving back another payment, or (null) not a refund. */
+  const setRefundOf = (txId: string, refundOf: string | null) => {
+    const tx = allPTxs.find((t) => t.id === txId)
+    if (!tx || (tx.refundOf ?? null) === refundOf) return
+    setPTxs((ts) => ts.map((t) => (t.id === txId ? { ...t, refundOf } : t)))
+    notify(refundOf ? 'Marked as a refund.' : 'No longer counted as a refund.', { label: 'Undo', run: () => restore([tx]) })
+  }
+
+  const hydratePersonal = (saved: { pTxs: PTx[]; categories: Category[]; rules: CategoryRule[]; nicknames: Record<string, string>; personMerges: PersonMerge[] }) => {
     setPTxs(newestFirst(saved.pTxs))
     setCategories(saved.categories.length ? saved.categories : DEFAULT_CATEGORIES.map((c) => ({ ...c })))
     setRules(saved.rules)
     setNicknames(saved.nicknames)
+    setPersonMerges(saved.personMerges)
   }
 
   /**
@@ -226,6 +286,7 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
     if (first) {
       setRules([])
       setNicknames({})
+      setPersonMerges([])
       setCategories(categories?.length ? categories : DEFAULT_CATEGORIES.map((c) => ({ ...c })))
       setPeriodId('month')
       setPFilters(CLEAR_PFILTERS)
@@ -242,6 +303,7 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
     setRules(s.rules)
     setCategories(s.categories)
     setNicknames({})
+    setPersonMerges([])
     setPeriodId('month')
     setPFilters(CLEAR_PFILTERS)
     setPExportPrefs(DEFAULT_PEXPORT)
@@ -250,6 +312,7 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   return {
     nicknames,
     pTxs,
+    refunds,
     allPTxs,
     pTxsIn,
     period,
@@ -273,6 +336,11 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
     moveCategory,
     deleteRule,
     setNickname,
+    personMerges,
+    mergePerson,
+    separatePerson,
+    mergeCategory,
+    setRefundOf,
     hydratePersonal,
     applyPersonalScan,
     resetPersonal,

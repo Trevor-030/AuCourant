@@ -27,6 +27,7 @@ public final class ParserCheck {
         reversal();
         unread();
         senders();
+        telecel();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
     }
@@ -220,6 +221,37 @@ public final class ParserCheck {
         eq("sender other", false, MomoSenders.matches("MTN"));
         eq("sender phone number", false, MomoSenders.matches("+233241234567"));
         eq("sender missing", false, MomoSenders.matches(null));
+        eq("sender Telecel Cash", true, MomoSenders.matches("T-CASH"));
+    }
+
+    // ---- Telecel Cash -----------------------------------------------------------------
+
+    private static void telecel() {
+        String nl = String.valueOf((char) 10);
+        // The shape of a real Telecel Cash message (2026-11-24), money from an MTN wallet. Name, number and IDs made up; wording and spacing kept, two spaces included.
+        String body = "0000012345678901 Confirmed. You have received GHS27.00 from MTN MOBILE MONEY with transaction reference: "
+                + "Transfer From: 233545550172-ESI ADDO  on 2026-06-14 at 11:00:00. Your Telecel Cash balance is GHS43.75." + nl
+                + "Ref: 1." + nl
+                + "Stay alert. Never share your PIN or OTP with anyone or click unknown links. Protect your personal information.";
+        ParsedSms p = ParserRegistry.forSender("T-CASH").parse(body);
+        eq("telecel received type", TxType.RECEIVED, p.type);
+        eq("telecel received amount", 27.0, p.amount);
+        eq("telecel received name", "ESI ADDO", p.counterpartyName);
+        eq("telecel received number", "233545550172", p.counterpartyNumber);
+        eq("telecel received balance", 43.75, p.balance);
+        eq("telecel received txId", "0000012345678901", p.txId);
+        eq("telecel received reference", "1", p.rawReference);
+        eq("telecel received status", ParsedSms.Status.PARSED, p.status);
+
+        ParsedSms one = ParserRegistry.forSender("T-CASH").parse(body.replace(nl, " "));
+        eq("telecel reference on one line", "1", one.rawReference);
+
+        ParsedSms other = ParserRegistry.forSender("T-CASH").parse("Stay alert. Never share your PIN or OTP with anyone.");
+        eq("telecel other message is unread", TxType.UNREAD, other.type);
+
+        ParsedSms mtn = ParserRegistry.forSender("MobileMoney").parse("Payment received for GHS 150.00 from KOFI BOATENG 0545550172. Current Balance: GHS 3,240.50.");
+        eq("MTN sender still reads MTN", TxType.RECEIVED, mtn.type);
+        eq("MTN template does not read Telecel", TxType.UNREAD, ParserRegistry.forSender("MobileMoney").parse(body).type);
     }
 
     // ---- Assertions --------------------------------------------------------------

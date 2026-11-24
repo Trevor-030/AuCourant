@@ -25,7 +25,7 @@ native/android/java/...      Java sources: CrashLog, CrashModule, CrashProvider,
                              problem report text (crash/), Room storage (store/). parser/, sorting/, lock/ and crash/ have
                              no Android imports
 native/android/test/...      plain-JDK checks (no Android, no JUnit): ParserCheck, SortCheck, LockCheck, CrashCheck; ParseDump and SortDump for the inbox checks
-scripts/                     test-parser.js, test-inbox.js (via java-sorter.js), test-persist.js, test-report.js and test-crash.js (only Node and the JDK)
+scripts/                     test-parser.js, test-inbox.js (via java-sorter.js), test-persist.js, test-report.js, test-crash.js and test-search.js (only Node and the JDK)
 plugins/with-aucourant-native.js   copies the Java into android/ and registers it on every prebuild; 64-bit (arm64-v8a) only
 assets/                      app icon, adaptive icon layers, splash, favicon (built from assets/brand/svg/app)
 assets/brand/                logo kit: SVG masters and PNG exports. Rules in docs/brand-guidelines.md
@@ -65,6 +65,7 @@ npm run test:inbox          # sample SMS text -> Java parser -> Java sorter, che
 npm run test:persist        # the save queue, scan merge and manual-fix count (src/lib/persist.ts)
 npm run test:crash          # JavaScript errors as report text (src/lib/crash.ts)
 npm run test:report         # PDF, CSV and Excel reports (src/lib/report.ts, xlsx.ts)
+npm run test:search         # what the search boxes match (src/lib/search.ts)
 npx expo-doctor             # config and dependency checks
 npx expo prebuild --clean   # regenerate android/ after changing app.json or the plugin
 ```

@@ -9,7 +9,7 @@ import { AppBar, Button, Chip, Divided, EmptyState, Expandable, Field, RadioRow,
 import { CaretRightIcon, FunnelIcon, ReceiptIcon, UsersIcon } from '../../ui/icons'
 import { Body } from '../../ui/layout'
 import { Sheet } from '../../ui/overlays'
-import { matches } from '../shared'
+import { pTxMatches } from '../../lib/search'
 import { CategorySheet, PDayHeader, PTxRow, PeriodSheet, pByDay, signed } from './shared'
 
 const PAGE = 50
@@ -29,7 +29,7 @@ export function PersonalTransactions() {
       (!f.dir || t.direction === f.dir) &&
       (!f.categoryId || (f.categoryId === 'none' ? !t.categoryId : t.categoryId === f.categoryId)) &&
       (!f.personKey || t.personKey === f.personKey) &&
-      matches(f.query, t.name, people.get(t.personKey)?.nickname, t.phone, t.reference, money(t.amount), t.amount.toFixed(2), categoryName(t.categoryId), t.raw),
+      pTxMatches(t, f.query, people.get(t.personKey)?.nickname, categoryName(t.categoryId)),
   )
 
   let left = limit

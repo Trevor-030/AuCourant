@@ -34,7 +34,8 @@
     "test:inbox": "node scripts/test-inbox.js",
     "test:persist": "node scripts/test-persist.js",
     "test:report": "node scripts/test-report.js",
-    "test:crash": "node scripts/test-crash.js"
+    "test:crash": "node scripts/test-crash.js",
+    "test:search": "node scripts/test-search.js"
   },
   "private": true
 }

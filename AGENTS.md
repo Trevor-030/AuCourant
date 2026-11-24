@@ -12,7 +12,8 @@ src/AppShell.tsx             screen switcher, bottom nav, Android back button
 src/lib/                     store (state + actions), sample data, formatting, report builders
                              inbox.ts: shared types, NO_REFERENCE, codeDoubt (the sorting itself is in Java)
                              persist.ts: save queue to Room, scan merge, manual-fix count (pure, no React Native)
-                             personal*.ts, categorise.ts, periods.ts: the Personal use type
+                             personal*.ts, categorise.ts, periods.ts: the Personal use type; personal-merge.ts: merging
+                             people and categories, refunds and totals (pure, no React Native)
 src/screens/                 one file per area (onboarding, home, groups, transactions, review, export, settings, lock, codes)
 src/screens/personal/        Personal views: home, transactions, person, categories, export
 src/ui/                      kit (buttons, rows, fields), overlays (sheet, dialog, snackbar, coach marks), icons
@@ -66,6 +67,7 @@ npm run test:persist        # the save queue, scan merge and manual-fix count (s
 npm run test:crash          # JavaScript errors as report text (src/lib/crash.ts)
 npm run test:report         # PDF, CSV and Excel reports (src/lib/report.ts, xlsx.ts)
 npm run test:search         # what the search boxes match (src/lib/search.ts)
+npm run test:merge          # Personal merges, refunds and totals (src/lib/personal-merge.ts)
 npx expo-doctor             # config and dependency checks
 npx expo prebuild --clean   # regenerate android/ after changing app.json or the plugin
 ```

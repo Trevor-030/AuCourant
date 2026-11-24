@@ -41,6 +41,10 @@ public final class SortCheck {
         eq("not similar", false, Text.similarNames("Offering", "Welfare"));
         eq("short words are not suggested", false, Text.similarNames("Dues", "Due"));
         eq("normalize", "fresh mart", Text.normalize("  Fresh   MART "));
+        // The same spaces as JavaScript's \s in format.ts, without a regex flag Android rejects.
+        eq("normalize no-break and thin spaces", "fresh mart", Text.normalize("Fresh\u00A0\u2009MART"));
+        eq("normalize byte order mark like JavaScript", "a b", Text.normalize("a\uFEFFb"));
+        eq("matchKey no-break space", "building fund", Text.matchKey("Building\u00A0fund"));
         eq("personKey phone", "0545550172", Text.personKeyOf("054 555 0172", "Kofi"));
         eq("personKey name", "m:kasoa fresh mart", Text.personKeyOf(null, " Kasoa Fresh Mart "));
         long millis = new java.util.GregorianCalendar(2026, 9, 28, 9, 5).getTimeInMillis();

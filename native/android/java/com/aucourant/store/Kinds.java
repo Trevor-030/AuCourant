@@ -25,10 +25,12 @@ public final class Kinds {
     public static final String SEEN = "seen_sms";
     /** The manual-fix record (architecture.md, GroupChange). */
     public static final String CHANGES = "group_change";
+    /** Personal person merges: id = record id, json = { id, fromKey, toKey, txIds, nicknameBefore, fromNickname, date }. */
+    public static final String PERSON_MERGES = "person_merge";
 
     /** Lists the screens may write through StoreModule.save. */
     public static final Set<String> WRITABLE = new HashSet<>(Arrays.asList(
-            TXS, GROUPS, MERGES, SUGGESTIONS, UNREAD, CODES, SPECIALS, PTXS, CATEGORIES, RULES, NICKNAMES, CHANGES));
+            TXS, GROUPS, MERGES, SUGGESTIONS, UNREAD, CODES, SPECIALS, PTXS, CATEGORIES, RULES, NICKNAMES, CHANGES, PERSON_MERGES));
 
     private Kinds() {
     }

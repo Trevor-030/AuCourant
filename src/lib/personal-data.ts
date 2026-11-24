@@ -55,6 +55,8 @@ export type PTx = {
   raw: string
   categoryId: string | null
   catSource: CatSource | null
+  /** The id of the payment this one gives back (a reversal, or marked by hand). Missing in data saved before 2026-11-24. */
+  refundOf?: string | null
 }
 
 export type Category = { id: string; name: string; builtIn?: boolean; hidden?: boolean }
@@ -233,7 +235,7 @@ export function seedPersonalTxs(): PTx[] {
       time,
       txId,
     }
-    const tx: PTx = { ...base, raw: rawSms({ ...base, reference }, reversedTxId), categoryId: null, catSource: null }
+    const tx: PTx = { ...base, raw: rawSms({ ...base, reference }, reversedTxId), categoryId: null, catSource: null, refundOf: p.kind === 'reversal' ? byPlan.get(p.of)!.id : null }
     byPlan.set(i, tx)
     out.push(tx)
   })

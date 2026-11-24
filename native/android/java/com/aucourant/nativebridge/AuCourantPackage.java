@@ -20,6 +20,7 @@ public class AuCourantPackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(@NonNull ReactApplicationContext context) {
         return Arrays.<NativeModule>asList(
+                new CrashModule(context),
                 new ExportModule(context),
                 new FingerprintModule(context),
                 new LockModule(context),

@@ -11,7 +11,13 @@ import java.util.regex.Pattern;
  */
 abstract class MtnTemplate implements SmsParser {
     static final String AMT = "(?:GHS|GHC|GH\\u00A2)\\s*([\\d,]+(?:\\.\\d+)?)";
-    private static final String NAME = "([A-Z][A-Z .'\\-]*?[A-Z])";
+    /** One word of a name: letters, with dots, apostrophes and hyphens inside ("J.", "O'NEIL", "OFORIWAA-BOATEMAA"). */
+    private static final String WORD = "[A-Za-z][A-Za-z.'\\-]*";
+    /** Words that start the next part of the message, so a name never runs into them. */
+    private static final String NOT_FIELD =
+            "(?!(?i:current|new|balance|bal|reference|ref|transaction|trxn|financial|fee|tax|e-?levy|your|on|at|for|with|has|was|is)\\b)";
+    /** The whole name, any case: every word up to a number, punctuation or the next field. */
+    private static final String NAME = "(" + NOT_FIELD + WORD + "(?: +" + NOT_FIELD + WORD + ")*)";
     private static final String NUMBER = "(\\+?\\d{10,12})";
 
     private static final Pattern FEE = Pattern.compile("(?:Fee charged|Transaction Fee|Fee)\\s*:?\\s*" + AMT, Pattern.CASE_INSENSITIVE);
@@ -48,17 +54,20 @@ abstract class MtnTemplate implements SmsParser {
 
     // ---- Helpers for subclasses ---------------------------------------------------
 
-    /** "{lead} GHS 50.00 {joiner} NAME 0241234567". Name and number are each optional. */
+    /**
+     * "{lead} GHS 50.00 {joiner} NAME 0241234567". Name and number are each optional; the number may be in
+     * brackets. A number with hidden digits ("054****172") is not a number, but the name before it is kept.
+     */
     static void amountAndParty(ParsedSms.Builder b, String body, String lead, String joiner) {
         b.amount = money(Pattern.compile(lead + "\\s*" + AMT, Pattern.CASE_INSENSITIVE), body);
-        Matcher m = Pattern.compile("\\b" + joiner + "\\s+(?:" + NAME + "\\s+)?" + NUMBER).matcher(body);
-        if (m.find()) {
-            b.counterpartyName = m.group(1);
+        Matcher m = Pattern.compile("\\b" + joiner + "\\s+" + NAME + "?(?:\\s*\\(?\\s*" + NUMBER + "\\)?)?").matcher(body);
+        while (m.find()) {
+            if (m.group(1) == null && m.group(2) == null) continue;
+            // A name at the end of a sentence keeps its full stop as part of the last word ("BOATENG.").
+            b.counterpartyName = m.group(1) == null ? null : m.group(1).replaceAll("[.'\\-]+$", "");
             b.counterpartyNumber = m.group(2);
             return;
         }
-        Matcher n = Pattern.compile("\\b" + joiner + "\\s+" + NAME + "(?=[\\s.,]|$)").matcher(body);
-        if (n.find()) b.counterpartyName = n.group(1);
     }
 
     /** "{lead} GHS 50.00 ... {merchantLead} SHOP NAME {stop}" */

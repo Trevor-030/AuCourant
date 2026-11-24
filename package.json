@@ -35,7 +35,8 @@
     "test:persist": "node scripts/test-persist.js",
     "test:report": "node scripts/test-report.js",
     "test:crash": "node scripts/test-crash.js",
-    "test:search": "node scripts/test-search.js"
+    "test:search": "node scripts/test-search.js",
+    "test:merge": "node scripts/test-personal-merge.js"
   },
   "private": true
 }

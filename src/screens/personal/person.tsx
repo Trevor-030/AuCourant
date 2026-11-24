@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { View } from 'react-native'
 import { useApp } from '../../lib/store'
 import { totalsOf } from '../../lib/personal'
-import { money, plural } from '../../lib/format'
+import { longDate, money, plural } from '../../lib/format'
+import { matches } from '../../lib/search'
+import type { PersonMerge } from '../../lib/personal-merge'
 import { makeStyles } from '../../theme'
-import { AppBar, Button, Divided, EmptyState, IconButton, Row, Surface, T, TextField } from '../../ui/kit'
+import { AppBar, Button, Divided, EmptyState, IconButton, RadioRow, Row, SearchField, SectionLabel, Surface, T, TextField } from '../../ui/kit'
 import { PencilSimpleIcon, UsersIcon } from '../../ui/icons'
 import { Body } from '../../ui/layout'
 import { Sheet } from '../../ui/overlays'
@@ -13,8 +15,9 @@ import { PDayHeader, PTxRow, pByDay } from './shared'
 /** Everything with one person or shop. For a business, this is the customer view. */
 export function Person({ id }: { id: string }) {
   const s = useStyles()
-  const { allPTxs, people, personName, back, push, rules, categoryName } = useApp()
+  const { allPTxs, people, personName, back, push, rules, categoryName, refunds, personMerges, separatePerson } = useApp()
   const [edit, setEdit] = useState(false)
+  const [merging, setMerging] = useState(false)
   const p = people.get(id)
   const list = allPTxs.filter((t) => t.personKey === id)
   if (!p || list.length === 0) {
@@ -25,9 +28,15 @@ export function Person({ id }: { id: string }) {
       </>
     )
   }
-  const tot = totalsOf(list)
+  const tot = totalsOf(list, refunds)
   const rule = rules.find((r) => r.kind === 'person' && r.value === id)
   const canNickname = id !== 'm:airtime'
+  const merged = personMerges.filter((m) => m.toKey === id)
+  /** Who was merged in: the name and number on their payments, or the key when none are left. */
+  const mergedLabel = (m: PersonMerge) => {
+    const t = allPTxs.find((x) => m.txIds.includes(x.id))
+    return t ? [t.name, t.phone].filter(Boolean).join(' · ') : m.fromKey
+  }
 
   return (
     <>
@@ -81,6 +90,32 @@ export function Person({ id }: { id: string }) {
           </Surface>
         )}
 
+        {canNickname && (
+          <Surface style={{ marginTop: 12 }}>
+            <Row title="Merge with another person" sub="The same person with another number or spelling." onPress={() => setMerging(true)} />
+          </Surface>
+        )}
+
+        {merged.length > 0 && (
+          <View style={{ marginTop: 12 }}>
+            <SectionLabel>Merged into this person</SectionLabel>
+            <Surface divided>
+              {merged.map((m) => (
+                <Row
+                  key={m.id}
+                  title={mergedLabel(m)}
+                  sub={`Merged ${longDate(m.date)}`}
+                  trailing={
+                    <Button variant="text" onPress={() => separatePerson(m.id)}>
+                      Separate
+                    </Button>
+                  }
+                />
+              ))}
+            </Surface>
+          </View>
+        )}
+
         {pByDay(list).map((d) => (
           <View key={d.date}>
             <PDayHeader day={d} />
@@ -98,7 +133,76 @@ export function Person({ id }: { id: string }) {
         </T>
       </Body>
       <NicknameSheet open={edit} personKey={id} onClose={() => setEdit(false)} />
+      <MergePersonSheet open={merging} personKey={id} onClose={() => setMerging(false)} />
     </>
+  )
+}
+
+/** Pick the other person, then which name to keep. The person whose page this is stays; the other merges in. */
+function MergePersonSheet({ open, personKey, onClose }: { open: boolean; personKey: string; onClose: () => void }) {
+  const { people, personName, mergePerson } = useApp()
+  const [q, setQ] = useState('')
+  const [other, setOther] = useState<string | null>(null)
+  const [keepOther, setKeepOther] = useState(false)
+  useEffect(() => {
+    if (open) {
+      setQ('')
+      setOther(null)
+      setKeepOther(false)
+    }
+  }, [open])
+  const me = people.get(personKey)
+  const o = other ? people.get(other) : undefined
+  const myName = personName(personKey)
+  const otherName = other ? personName(other) : ''
+  const candidates = [...people.values()]
+    .filter((x) => x.key !== personKey && x.key !== 'm:airtime' && matches(q, x.name, x.nickname, x.phone, x.phone?.replace(/\s/g, '')))
+    .slice(0, 30)
+  const merge = () => {
+    if (!other) return
+    mergePerson(other, personKey, keepOther ? otherName : myName)
+    onClose()
+  }
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={o ? 'Which name to keep?' : 'Merge with'}
+      footer={
+        o ? (
+          <Button full onPress={merge}>
+            Merge
+          </Button>
+        ) : undefined
+      }
+    >
+      {o ? (
+        <>
+          <T v="sec" tone="fg2" style={{ marginBottom: 8 }}>
+            Payments with {otherName} move here, and new messages from {o.phone ?? 'them'} come here too. You can separate them again on this page.
+          </T>
+          <RadioRow checked={!keepOther} onSelect={() => setKeepOther(false)} label={myName} sub={me?.phone ?? undefined} />
+          <RadioRow checked={keepOther} onSelect={() => setKeepOther(true)} label={otherName} sub={o.phone ?? undefined} />
+          <Button full variant="text" style={{ marginTop: 8 }} onPress={() => setOther(null)}>
+            Choose someone else
+          </Button>
+        </>
+      ) : (
+        <>
+          <SearchField label="Search name or number" value={q} onChange={setQ} />
+          <Divided>
+            {candidates.map((x) => (
+              <Row key={x.key} title={personName(x.key)} sub={x.phone ?? undefined} onPress={() => setOther(x.key)} />
+            ))}
+          </Divided>
+          {candidates.length === 0 && (
+            <T v="sec" tone="fg2" style={{ marginTop: 12 }}>
+              No one matches.
+            </T>
+          )}
+        </>
+      )}
+    </Sheet>
   )
 }
 

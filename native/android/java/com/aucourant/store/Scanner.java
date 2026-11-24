@@ -8,6 +8,7 @@ import com.aucourant.sorting.Model.ChurchData;
 import com.aucourant.sorting.Model.CodeName;
 import com.aucourant.sorting.Model.PTx;
 import com.aucourant.sorting.Model.Row;
+import com.aucourant.sorting.PersonMerges;
 import com.aucourant.sorting.PersonalReader;
 
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ public final class Scanner {
     /** Lists cleared by the first scan. Settings and the lock stay. */
     private static final String[] FIRST_SCAN_CLEARS = {
         Kinds.TXS, Kinds.GROUPS, Kinds.MERGES, Kinds.SUGGESTIONS, Kinds.UNREAD, Kinds.CODES, Kinds.SPECIALS,
-        Kinds.PTXS, Kinds.CATEGORIES, Kinds.RULES, Kinds.NICKNAMES, Kinds.SEEN, Kinds.CHANGES,
+        Kinds.PTXS, Kinds.CATEGORIES, Kinds.RULES, Kinds.NICKNAMES, Kinds.SEEN, Kinds.CHANGES, Kinds.PERSON_MERGES,
     };
 
     private static final String[] CHURCH = {
@@ -148,6 +149,12 @@ public final class Scanner {
         for (PTx t : known) knownIds.add(t.id);
         List<PTx> added = new ArrayList<>();
         for (PTx t : PersonalReader.toPersonalTxs(rows, known)) if (!knownIds.contains(t.id)) added.add(t);
+        // People merged on screen: a new payment from a merged-away number goes to the person it was merged into.
+        if (!first) {
+            List<Map<String, Object>> personMerges = new ArrayList<>();
+            for (RecordEntity r : dao.all(Kinds.PERSON_MERGES)) personMerges.add(Model.asMap(Json.parse(r.json)));
+            for (PTx t : added) t.personKey = PersonMerges.resolve(t.personKey, personMerges);
+        }
         List<Model.CategoryRule> rules = new ArrayList<>();
         if (!first) for (RecordEntity r : dao.all(Kinds.RULES)) rules.add(Model.CategoryRule.fromJson(Model.asMap(Json.parse(r.json))));
         List<Map<String, Object>> pTxs = new ArrayList<>();

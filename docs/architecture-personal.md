@@ -165,7 +165,7 @@ The Personal views start on sample data and switch to the phone's real payments 
 **Provisional parser templates.** Only *Payment received* and *Cash In* come from real samples. *Payment made* (sent), merchant payment, bill payment, cash out, airtime and data, and reversal are **best-guess wording**, marked `PROVISIONAL` in each class. The registry tries the specific wordings first (reversal, cash in and out, airtime, bills, merchants), then the plain payment ones. Every field (fee, tax, balance, reference, transaction ID) is read on its own, so a change in field order does not break a whole message. Unknown messages come back as `UNREAD` with the raw text. A developer-only *Parse my inbox* button (Settings, Developer) counts message types on a real phone without storing anything, which is the quickest way to run spike 1 and collect the real wording.
 
 **Small choices made while building (two-way doors):**
-- A reversal counts as money in (the money comes back).
+- A reversal counts as money in (the money comes back). *Changed 2026-11-24:* a reversal is linked to the payment it undoes (`refundOf`), and neither counts; see Merges and refunds below.
 - The user's own airtime and data top-ups are grouped as one "person", *Airtime and data*.
 - Removing a rule does not move payments back. Only future payments are affected.
 - Hiding a category takes it out of lists and pickers. Its payments keep the category.
@@ -180,3 +180,11 @@ The Personal views start on sample data and switch to the phone's real payments 
 - Names written in capitals in the SMS are shown in title case. Shop and biller names are kept as written.
 
 The live receiver is shared with church (built 2026-11-23). Payments, categories, rules and nicknames are saved in Room since 2026-11-21.
+
+## Merges and refunds (built 2026-11-24)
+
+Design: `docs/superpowers/specs/2026-11-24-personal-merge-design.md`. Rules in `src/lib/personal-merge.ts`, checked by `npm run test:merge`.
+
+- **People:** *Merge with another person* on a person's page moves the other person's payments, rules and nickname here; you choose which name to keep. The merge is saved (`person_merge`) and the Java scan follows it (`sorting/PersonMerges.java`), so new messages from the merged number land here too, even with the app closed. *Separate* on the same page undoes it at any time; rules stay with the kept person.
+- **Categories:** *Merge into* in Manage categories moves a category's payments and rules into another and removes it. Built-in categories can receive a merge but cannot be merged away. Undo only from the message right after.
+- **Refunds:** a payment's `refundOf` points at the payment it gives back. The scan sets it on a reversal; *This is a refund of…* sets it on any other money in. A refund never counts as money in; the payment it gives back counts only what was not returned, never below zero, even when the refund falls in a later period. Fees still count. Payments saved before this change are not linked: Erase all and scan again.

@@ -16,8 +16,13 @@ public final class Text {
     static final double SUGGEST_AT = 0.8;
 
     private static final Pattern PUNCT = Pattern.compile("[.,;:!?'\"`()\\[\\]{}\\-_/\\\\*&@#+=<>|~^%$]");
-    private static final Pattern SPACES = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
-    private static final Pattern WORD_START = Pattern.compile("(^|[\\s\\-'.])([a-z])", Pattern.UNICODE_CHARACTER_CLASS);
+    /**
+     * JavaScript's \s, spelled out, so Java and format.ts agree on every phone and JDK. No regex flags: Android rejects
+     * the Unicode character class flag, and a failed static Pattern stopped the first scan (2026-11-24).
+     */
+    private static final String WS = "\\t\\n\\u000B\\f\\r \\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF";
+    private static final Pattern SPACES = Pattern.compile("[" + WS + "]+");
+    private static final Pattern WORD_START = Pattern.compile("(^|[" + WS + "\\-'.])([a-z])");
 
     private Text() {
     }

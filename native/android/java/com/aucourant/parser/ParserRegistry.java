@@ -22,6 +22,10 @@ public final class ParserRegistry {
             new MtnSentParser(),
             new MtnReceivedParser()));
 
+    /** Telecel Cash. Only received money has a real sample; other Telecel messages go to "Not read". */
+    private static final ParserRegistry TELECEL = new ParserRegistry(Arrays.<SmsParser>asList(
+            new TelecelReceivedParser()));
+
     private final List<SmsParser> parsers;
 
     ParserRegistry(List<SmsParser> parsers) {
@@ -30,6 +34,11 @@ public final class ParserRegistry {
 
     public static ParserRegistry mtn() {
         return MTN;
+    }
+
+    /** The templates for the network that sent the message, so one network's wording is never read as another's. */
+    public static ParserRegistry forSender(String address) {
+        return MomoSenders.telecel(address) ? TELECEL : MTN;
     }
 
     public ParsedSms parse(String body) {

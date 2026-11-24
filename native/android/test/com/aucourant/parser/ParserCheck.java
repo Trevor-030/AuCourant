@@ -17,6 +17,7 @@ public final class ParserCheck {
         money();
         referenceCleaner();
         received();
+        nameShapes();
         cashIn();
         sent();
         merchant();
@@ -84,6 +85,31 @@ public final class ParserCheck {
         eq("received fee", 0.0, p.fee);
         eq("received balance", 3240.5, p.balance);
         eq("received status", ParsedSms.Status.PARSED, p.status);
+    }
+
+    /** The whole name, whatever follows it. On a phone only the first name was kept (2026-11-24). */
+    private static void nameShapes() {
+        String tail = " Current Balance: GHS 3,240.50. Transaction ID: 48212345678.";
+        String[][] cases = {
+                // after "from"                       name                       number
+                {"KOFI BOATENG 0545550172.", "KOFI BOATENG", "0545550172"},
+                {"KOFI BOATENG.", "KOFI BOATENG", null},
+                {"KOFI BOATENG (0545550172).", "KOFI BOATENG", "0545550172"},
+                {"KOFI BOATENG 054****172.", "KOFI BOATENG", null},
+                {"Kofi Boateng 0545550172.", "Kofi Boateng", "0545550172"},
+                {"NANA OFORIWAA-BOATEMAA 0545550172.", "NANA OFORIWAA-BOATEMAA", "0545550172"},
+                {"KWAME O'NEIL ADDO.", "KWAME O'NEIL ADDO", null},
+                {"KOFI BOATENG Current", "KOFI BOATENG", null},
+                {"0545550172.", null, "0545550172"},
+        };
+        for (String[] c : cases) {
+            String body = "Payment received for GHS 150.00 from " + c[0] + (c[0].endsWith("Current") ? " Balance: GHS 3,240.50." : tail);
+            ParsedSms p = ParserRegistry.mtn().parse(body);
+            eq("name from \"" + c[0] + "\"", c[1], p.counterpartyName);
+            eq("number from \"" + c[0] + "\"", c[2], p.counterpartyNumber);
+        }
+        ParsedSms sent = ParserRegistry.mtn().parse("Payment made for GHS 120.00 to AMA SERWAA OWUSU. Current Balance: GHS 1,880.00.");
+        eq("sent full name without number", "AMA SERWAA OWUSU", sent.counterpartyName);
     }
 
     private static void cashIn() {

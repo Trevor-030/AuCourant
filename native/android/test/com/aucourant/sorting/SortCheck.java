@@ -20,6 +20,7 @@ public final class SortCheck {
         text();
         json();
         model();
+        merges();
         speed();
         sameAsPlainDistance();
         System.out.println(passed + " passed, " + failed + " failed");
@@ -70,8 +71,8 @@ public final class SortCheck {
         eq("merge round trip", merge, Json.write(Model.Merge.fromJson(map(merge)).toJson()));
         String ptx = "{\"id\":\"t:2\",\"kind\":\"cash-in\",\"direction\":\"in\",\"amount\":100,\"fee\":1.75,\"balance\":null,\"name\":\"Ama\","
                 + "\"phone\":null,\"personKey\":\"m:ama\",\"reference\":null,\"date\":\"2026-10-28\",\"time\":\"10:00\",\"txId\":\"2\",\"raw\":\"r\","
-                + "\"categoryId\":null,\"catSource\":null}";
-        eq("personal tx round trip", ptx, Json.write(Model.PTx.fromJson(map(ptx)).toJson()));
+                + "\"categoryId\":null,\"catSource\":null,\"refundOf\":\"t:1\"}";
+        eq("personal tx round trip, refundOf kept", ptx, Json.write(Model.PTx.fromJson(map(ptx)).toJson()));
         eq("lists", Arrays.asList("a", "b"), Model.strings(Json.parse("[\"a\",\"b\"]")));
     }
 
@@ -152,6 +153,44 @@ public final class SortCheck {
             prev = row;
         }
         return prev[b.length()];
+    }
+
+    /** Person merges the scan follows, and reversals linked to the payment they give back (2026-11-24). */
+    private static void merges() {
+        List<Map<String, Object>> list = Arrays.asList(
+                map("{\"id\":\"pm2\",\"fromKey\":\"A\",\"toKey\":\"C\",\"date\":\"2026-11-24\"}"),
+                map("{\"id\":\"pm1\",\"fromKey\":\"B\",\"toKey\":\"A\",\"date\":\"2026-11-20\"}"));
+        eq("merge resolves", "C", PersonMerges.resolve("A", list));
+        eq("merge chain resolves to last", "C", PersonMerges.resolve("B", list));
+        eq("unknown key unchanged", "X", PersonMerges.resolve("X", list));
+        List<Map<String, Object>> loop = Arrays.asList(map("{\"fromKey\":\"A\",\"toKey\":\"B\"}"), map("{\"fromKey\":\"B\",\"toKey\":\"A\"}"));
+        eq("merge loop stops", "B", PersonMerges.resolve("A", loop));
+
+        Model.Row sent = row("1", "SENT", 100.0, "48200000001", "AMA OWUSU", "0205550118", 1_700_000_000_000L);
+        Model.Row back = row("2", "REVERSAL", 100.0, "48200000001", null, null, 1_700_000_600_000L);
+        List<Model.PTx> out = PersonalReader.toPersonalTxs(Arrays.asList(sent, back), new java.util.ArrayList<>());
+        Model.PTx rev = out.stream().filter((t) -> "reversal".equals(t.kind)).findFirst().get();
+        Model.PTx paid = out.stream().filter((t) -> "sent".equals(t.kind)).findFirst().get();
+        eq("reversal links refundOf", paid.id, rev.refundOf);
+        eq("payment has no refundOf", null, paid.refundOf);
+        Model.PTx alone = PersonalReader.toPersonalTxs(Arrays.asList(back), new java.util.ArrayList<>()).get(0);
+        eq("reversal of an unknown payment has no refundOf", null, alone.refundOf);
+    }
+
+    private static Model.Row row(String id, String type, double amount, String txId, String name, String number, long date) {
+        Model.Sms sms = new Model.Sms();
+        sms.id = id;
+        sms.body = type + " " + id;
+        sms.date = date;
+        Model.Parsed p = new Model.Parsed();
+        p.type = type;
+        p.status = "PARSED";
+        p.amount = amount;
+        p.txId = txId;
+        p.counterpartyName = name;
+        p.counterpartyNumber = number;
+        p.referenceKind = "NONE";
+        return new Model.Row(sms, p);
     }
 
     @SuppressWarnings("unchecked")

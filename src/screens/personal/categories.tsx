@@ -5,7 +5,7 @@ import { totalsOf } from '../../lib/personal'
 import { money, plural } from '../../lib/format'
 import { makeStyles, useTheme } from '../../theme'
 import { AppBar, Button, Divided, EmptyState, IconButton, Row, SectionLabel, SkeletonRows, Surface, T, TextField } from '../../ui/kit'
-import { CaretDownIcon, CaretUpIcon, EyeIcon, EyeSlashIcon, GearSixIcon, PencilSimpleIcon, PlusIcon, TagIcon, TrashIcon } from '../../ui/icons'
+import { CaretDownIcon, CaretUpIcon, EyeIcon, EyeSlashIcon, GearSixIcon, GitMergeIcon, PencilSimpleIcon, PlusIcon, TagIcon, TrashIcon } from '../../ui/icons'
 import { Body } from '../../ui/layout'
 import { Sheet } from '../../ui/overlays'
 import { PDayHeader, PTxRow, PeriodSheet, pByDay } from './shared'
@@ -14,12 +14,12 @@ import { PDayHeader, PTxRow, PeriodSheet, pByDay } from './shared'
 export function Categories() {
   const s = useStyles()
   const { c } = useTheme()
-  const { demo, period, periodId, pTxsIn, categories, push, setTab, setPFilters } = useApp()
+  const { demo, period, periodId, pTxsIn, categories, push, setTab, setPFilters, refunds } = useApp()
   const [picker, setPicker] = useState(false)
   const list = pTxsIn(periodId)
   const uncategorised = list.filter((t) => !t.categoryId)
   const rows = categories
-    .map((cat) => ({ cat, tot: totalsOf(list.filter((t) => t.categoryId === cat.id)) }))
+    .map((cat) => ({ cat, tot: totalsOf(list.filter((t) => t.categoryId === cat.id), refunds) }))
     .sort((a, b) => (b.tot.count > 0 ? 1 : 0) - (a.tot.count > 0 ? 1 : 0) || b.tot.moneyOut - a.tot.moneyOut || b.tot.moneyIn - a.tot.moneyIn)
 
   return (
@@ -51,7 +51,7 @@ export function Categories() {
                   title="Uncategorised"
                   titleWeight="medium"
                   sub={`${plural(uncategorised.length, 'payment')} need a category`}
-                  end={money(totalsOf(uncategorised).moneyOut)}
+                  end={money(totalsOf(uncategorised, refunds).moneyOut)}
                   onPress={() => {
                     setPFilters({ inPeriod: true, dir: null, categoryId: 'none', personKey: null, query: '' })
                     setTab('transactions')
@@ -83,7 +83,7 @@ export function Categories() {
 
 /** One category's payments in the period. */
 export function CategoryDetail({ id }: { id: string }) {
-  const { allCategories, period, periodId, pTxsIn, back, push } = useApp()
+  const { allCategories, period, periodId, pTxsIn, back, push, refunds } = useApp()
   const cat = allCategories.find((c) => c.id === id)
   const [picker, setPicker] = useState(false)
   if (!cat) {
@@ -95,7 +95,7 @@ export function CategoryDetail({ id }: { id: string }) {
     )
   }
   const list = pTxsIn(periodId).filter((t) => t.categoryId === id)
-  const tot = totalsOf(list)
+  const tot = totalsOf(list, refunds)
   return (
     <>
       <AppBar title={cat.name} onBack={back} />
@@ -141,6 +141,7 @@ export function ManageCategories() {
   const s = useStyles()
   const { allCategories, rules, categoryName, back, moveCategory, setCategoryHidden, deleteRule, addCategory, renameCategory, findCategoryByName } = useApp()
   const [editing, setEditing] = useState<string | 'new' | null>(null)
+  const [mergingFrom, setMergingFrom] = useState<string | null>(null)
 
   return (
     <>
@@ -164,6 +165,9 @@ export function ManageCategories() {
                       )}
                     </View>
                     <IconButton label={`Rename ${cat.name}`} icon={PencilSimpleIcon} size={20} onPress={() => setEditing(cat.id)} />
+                    {!cat.builtIn && allCategories.length > 1 && (
+                      <IconButton label={`Merge ${cat.name} into another category`} icon={GitMergeIcon} size={20} onPress={() => setMergingFrom(cat.id)} />
+                    )}
                     <IconButton
                       label={cat.hidden ? `Show ${cat.name}` : `Hide ${cat.name}`}
                       icon={cat.hidden ? EyeIcon : EyeSlashIcon}
@@ -229,7 +233,33 @@ export function ManageCategories() {
           return null
         }}
       />
+      <MergeCategorySheet fromId={mergingFrom} onClose={() => setMergingFrom(null)} />
     </>
+  )
+}
+
+/** Where a category's payments and rules go when it is merged. Built-in categories are never merged away. */
+function MergeCategorySheet({ fromId, onClose }: { fromId: string | null; onClose: () => void }) {
+  const { allCategories, categoryName, mergeCategory } = useApp()
+  const targets = allCategories.filter((c) => c.id !== fromId)
+  return (
+    <Sheet open={fromId !== null} onClose={onClose} title={fromId ? `Merge ${categoryName(fromId)} into` : 'Merge into'}>
+      <T v="sec" tone="fg2" style={{ marginBottom: 8 }}>
+        Its payments and rules move to the category you choose, and {fromId ? categoryName(fromId) : 'it'} is removed.
+      </T>
+      <Divided>
+        {targets.map((c) => (
+          <Row
+            key={c.id}
+            title={c.name}
+            onPress={() => {
+              if (fromId) mergeCategory(fromId, c.id)
+              onClose()
+            }}
+          />
+        ))}
+      </Divided>
+    </Sheet>
   )
 }
 

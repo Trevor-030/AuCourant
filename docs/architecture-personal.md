@@ -88,7 +88,7 @@ Navigation is four tabs: **Home, Transactions, Categories, Export.** Settings is
 - **Privacy:** personal money is more private than a church's. Same rules: no network, no cloud, backups off, lock optional but suggested at setup, recovery code as before. Same lock as church: the user chooses a 4-digit PIN, 6-digit PIN or password, with optional fingerprint and a recovery code. Users set the lock up themselves, and setup can be done later. No database encryption in version 1 (founder decision, same as church).
 - **No balance on Home.** Home shows totals only. The balance written in each SMS is still stored and appears only under *More details* on a payment, as the balance after that payment. The app never calculates a balance itself.
 - **No budgets, no fee warnings, no line charts in version 1.** The data supports them (fees and category totals are stored), so they can be added without changing the database.
-- **Other networks:** many personal users are on Telecel or AirtelTigo. They use the MTN template for now (founder decision), so expect more messages in *Not read* for them until real samples exist.
+- **Other networks:** many personal users are on Telecel or AirtelTigo. Telecel Cash received money is read (sender `T-CASH`, from a real sample, 2026-11-24); other Telecel messages go to *Not read*, and AirtelTigo is not read until its sender and samples are known.
 - **Parser is the one-way door again.** Directions and categories all depend on reading each type correctly. Wrong type means wrong direction and wrong totals, so the raw SMS stays next to every parsed field.
 
 ## Missing pieces

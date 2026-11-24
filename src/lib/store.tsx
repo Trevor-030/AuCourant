@@ -28,6 +28,7 @@ import { DEFAULT_CATEGORIES, type Category, type CategoryRule, type PTx } from '
 import type { PeriodId } from './periods'
 import type { ReportFormat } from './report'
 import { StoreNative, type LockCheck, type NativeScanResult, type Snapshot } from '../native/store'
+import { CrashNative } from '../native/crash'
 import { FingerprintNative, hasNative, LockNative, type FingerprintResult, type FingerprintStatus } from '../native'
 
 export type ThemePref = 'dark' | 'light' | 'system'
@@ -674,6 +675,7 @@ function useAppState() {
       touched = stop()
     }
     newestSms.current = res.newestSms
+    CrashNative.step(`scan read ${res.messages} messages, ${res.newPayments} new payments${res.first ? ', first scan' : ''}`)
     applyScan(res, touched)
     return { messages: res.messages, newPayments: res.newPayments }
   }
@@ -753,6 +755,7 @@ function useAppState() {
   const hydrate = (snap: Snapshot) => {
     const st = snap.settings
     const get = <T,>(kind: string) => (snap.lists[kind] ?? []) as T[]
+    CrashNative.step(`loaded ${get('church_tx').length} church and ${get('personal_tx').length} personal payments, ${get('church_group').length} groups, ${get('unread').length} not read`)
     if (st.useType) setUseType(st.useType as UseType)
     if (st.themePref) setThemePref(st.themePref as ThemePref)
     if (st.exportPrefs) setExportPrefs(st.exportPrefs as ExportPrefs)

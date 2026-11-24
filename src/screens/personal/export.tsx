@@ -17,7 +17,7 @@ import { PeriodSheet } from './shared'
 export function PersonalExport() {
   const s = useStyles()
   const { c } = useTheme()
-  const { period, periodId, pTxsIn, pExportPrefs: p, setPExportPrefs, demo, notify, categoryName, personName } = useApp()
+  const { period, periodId, pTxsIn, pExportPrefs: p, setPExportPrefs, demo, notify, categoryName, personName, refunds } = useApp()
   const [picker, setPicker] = useState(false)
   const [fieldsOpen, setFieldsOpen] = useState(false)
   const [status, setStatus] = useState<'idle' | 'working' | 'done' | 'error'>('idle')
@@ -26,7 +26,7 @@ export function PersonalExport() {
   const [file, setFile] = useState<ReportFile | null>(null)
 
   const list = [...pTxsIn(periodId)].sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)))
-  const tot = totalsOf(list)
+  const tot = totalsOf(list, refunds)
   const fields = P_EXPORT_FIELDS.filter((f) => p.fields.includes(f) && !(p.hideNames && P_NAME_FIELDS.includes(f)))
   const set = (patch: Partial<typeof p>) => {
     setPExportPrefs({ ...p, ...patch })
@@ -46,7 +46,7 @@ export function PersonalExport() {
     setStatus('working')
     try {
       if (demo === 'error') throw new Error('demo')
-      const ctx = { title: period.title, dateLabel: period.label, txs: list, fields, categoryName, personName }
+      const ctx = { title: period.title, dateLabel: period.label, txs: list, fields, categoryName, personName, refunds }
       const table = personalTable(ctx)
       const name = `${fileBase(ctx)}.${p.format}`
       const content = p.format === 'pdf' ? tablePdf(table) : p.format === 'xlsx' ? tableXlsx(table) : tableCsv(table)

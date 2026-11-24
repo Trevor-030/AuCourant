@@ -140,6 +140,7 @@ public class SmsModule extends ReactContextBaseJavaModule {
      *         referenceKind, txId, raw. Missing values are null.
      */
     @ReactMethod
+    // Developer tool only: it gets bodies without senders, so it reads with the MTN templates.
     public void parseMessages(ReadableArray bodies, Promise promise) {
         WritableArray out = Arguments.createArray();
         for (int i = 0; i < bodies.size(); i++) {

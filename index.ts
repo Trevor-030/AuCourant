@@ -1,3 +1,5 @@
+// First: it listens for errors while everything below loads.
+import './src/native/crash';
 import { registerRootComponent } from 'expo';
 
 import App from './App';

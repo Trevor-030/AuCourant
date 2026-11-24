@@ -13,6 +13,7 @@ import { AppProvider, useApp } from './src/lib/store'
 import { AppShell } from './src/AppShell'
 import { CoachProvider } from './src/ui/overlays'
 import { useTheme } from './src/theme'
+import { ProblemGate } from './src/screens/problem'
 
 // The splash stays up until the fonts and the saved data are loaded.
 SplashScreen.preventAutoHideAsync().catch(() => {})
@@ -32,18 +33,27 @@ function ThemedRoot() {
   return <AppShell />
 }
 
-export default function App() {
+function Main() {
   // Bundled with the app (open font licence). Nothing is fetched at runtime.
   const [loaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, InstrumentSerif_400Regular })
   // Without its fonts the app still works; it must not wait on the splash for ever.
   if (!loaded && !fontError) return <View style={{ flex: 1, backgroundColor: '#080d0c' }} />
   return (
+    <AppProvider>
+      <CoachProvider>
+        <ThemedRoot />
+      </CoachProvider>
+    </AppProvider>
+  )
+}
+
+export default function App() {
+  // The report of a problem comes before anything that could cause it again.
+  return (
     <SafeAreaProvider>
-      <AppProvider>
-        <CoachProvider>
-          <ThemedRoot />
-        </CoachProvider>
-      </AppProvider>
+      <ProblemGate>
+        <Main />
+      </ProblemGate>
     </SafeAreaProvider>
   )
 }

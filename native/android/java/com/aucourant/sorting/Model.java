@@ -379,6 +379,8 @@ public final class Model {
         public String raw;
         public String categoryId;
         public String catSource;
+        /** The id of the payment this one gives back (a reversal, or marked by hand), or null. */
+        public String refundOf;
 
         public String date() {
             return date;
@@ -406,6 +408,7 @@ public final class Model {
             t.raw = str(m, "raw");
             t.categoryId = str(m, "categoryId");
             t.catSource = str(m, "catSource");
+            t.refundOf = str(m, "refundOf");
             return t;
         }
 
@@ -427,6 +430,7 @@ public final class Model {
             m.put("raw", raw);
             m.put("categoryId", categoryId);
             m.put("catSource", catSource);
+            m.put("refundOf", refundOf);
             return m;
         }
 

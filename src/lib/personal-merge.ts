@@ -31,6 +31,11 @@ export function totalsOf(list: PTx[], refunds: Map<string, number> = new Map()):
   return t
 }
 
+/** Whether a payment can still be picked as the one a refund gives back: money out not yet fully returned. */
+export function refundable(t: PTx, refunds: Map<string, number>): boolean {
+  return t.direction === 'out' && (refunds.get(t.id) ?? 0) < t.amount
+}
+
 // ---- People ----------------------------------------------------------------------------
 
 /** Person `fromKey` merged into `toKey`. Saved (list `person_merge`); the Java scan reads it for new payments. */
@@ -121,4 +126,10 @@ export function mergeCategories(s: CategoryState, fromId: string, toId: string):
     rules: s.rules.map((r) => (r.categoryId === fromId ? { ...r, categoryId: toId } : r)),
     categories: s.categories.filter((c) => c.id !== fromId),
   }
+}
+
+/** Undo right after a category merge: the moved payments go back, except any the user has put somewhere else since. */
+export function undoCategoryMerge(txs: PTx[], movedIds: string[], fromId: string, toId: string): PTx[] {
+  const moved = new Set(movedIds)
+  return txs.map((t) => (moved.has(t.id) && t.categoryId === toId ? { ...t, categoryId: fromId } : t))
 }

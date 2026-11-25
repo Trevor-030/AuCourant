@@ -267,14 +267,25 @@ public final class ChurchSorter {
                 Group g = find(created.get(i));
                 if (g != null) createdAt.putIfAbsent(g, i);
             }
+            // Looked up once, not once per pair: with ~1,700 new groups the pairs run into the millions (speed check).
+            int m = open.size();
+            String[] openKey = new String[m];
+            int[] openAt = new int[m];
+            for (int k = 0; k < m; k++) {
+                Group b = open.get(k);
+                openKey[k] = similar.get(b);
+                Integer bi = createdAt.get(b);
+                openAt[k] = bi == null ? -1 : bi;
+            }
             for (int ai = 0; ai < created.size(); ai++) {
                 Group a = find(created.get(ai));
                 if (a == null || a.isHidden()) continue;
-                for (Group b : open) {
-                    Integer bi = createdAt.get(b);
-                    if (bi != null && bi < ai) continue;
+                String aKey = similar.get(a);
+                for (int k = 0; k < m; k++) {
+                    if (openAt[k] >= 0 && openAt[k] < ai) continue;
+                    Group b = open.get(k);
                     // Cheapest test first: most pairs are not alike.
-                    if (b == a || b.id.equals(a.id) || !Text.similarKeys(similar.get(a), similar.get(b))) continue;
+                    if (b == a || b.id.equals(a.id) || !Text.similarKeys(aKey, openKey[k])) continue;
                     String key = pair(a.id, b.id);
                     if (paired.contains(key)) continue;
                     paired.add(key);

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { categoriseAll } from './categorise'
 import { plural } from './format'
 import { mergeScan } from './persist'
-import { mergeCategories, mergePeople, refundsByPayment, separatePeople, type PersonMerge } from './personal-merge'
+import { mergeCategories, mergePeople, refundsByPayment, separatePeople, undoCategoryMerge, type PersonMerge } from './personal-merge'
 import { periodInfo, type PeriodId } from './periods'
 import type { ReportFormat } from './report'
 import { DEFAULT_CATEGORIES, SEED_RULES, seedPersonalTxs, type Category, type CategoryRule, type Direction, type PTx } from './personal-data'
@@ -209,7 +209,6 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   const mergePerson = (fromKey: string, toKey: string, keepName: string) => {
     if (fromKey === toKey) return
     const fromName = personName(fromKey)
-    const moved = allPTxs.filter((t) => t.personKey === fromKey)
     const prevRules = rules
     const prevNicknames = nicknames
     const s = mergePeople({ txs: allPTxs, rules, nicknames }, { id: 'pm' + Date.now(), fromKey, toKey, keepName, date: today })
@@ -220,7 +219,8 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
     notify(`Merged ${fromName} into ${keepName}.`, {
       label: 'Undo',
       run: () => {
-        restore(moved)
+        // Only who the payments belong to goes back, so other changes made since are kept.
+        setPTxs((ts) => separatePeople({ txs: ts, rules: prevRules, nicknames: prevNicknames }, s.record).txs)
         setRules(prevRules)
         setNicknames(prevNicknames)
         setPersonMerges((ms) => ms.filter((m) => m.id !== s.record.id))
@@ -243,7 +243,7 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
   const mergeCategory = (fromId: string, toId: string) => {
     const s = mergeCategories({ txs: allPTxs, rules, categories: allCategories }, fromId, toId)
     if (!s) return
-    const moved = allPTxs.filter((t) => t.categoryId === fromId)
+    const movedIds = allPTxs.filter((t) => t.categoryId === fromId).map((t) => t.id)
     const prevRules = rules
     const prevCategories = allCategories
     const fromName = categoryName(fromId)
@@ -255,7 +255,7 @@ export function usePersonalState({ notify, empty, today }: { notify: Notify; emp
       run: () => {
         setCategories(prevCategories)
         setRules(prevRules)
-        restore(moved)
+        setPTxs((ts) => undoCategoryMerge(ts, movedIds, fromId, toId))
       },
     })
   }

@@ -10,6 +10,7 @@ import { CaretRightIcon, FunnelIcon, ReceiptIcon, UsersIcon } from '../../ui/ico
 import { Body } from '../../ui/layout'
 import { Sheet } from '../../ui/overlays'
 import { matches, pTxMatches } from '../../lib/search'
+import { refundable } from '../../lib/personal-merge'
 import { CategorySheet, PDayHeader, PTxRow, PeriodSheet, pByDay, signed } from './shared'
 
 const PAGE = 50
@@ -319,14 +320,15 @@ export function PersonalTxDetail({ id }: { id: string }) {
 
 /** Money out to pick as the payment a refund gives back: the same person first, then everyone, newest first. */
 function RefundSheet({ txId, onClose }: { txId: string | null; onClose: () => void }) {
-  const { allPTxs, personName, setRefundOf } = useApp()
+  const { allPTxs, personName, setRefundOf, refunds } = useApp()
   const [q, setQ] = useState('')
   useEffect(() => {
     if (txId) setQ('')
   }, [txId])
   const t = allPTxs.find((x) => x.id === txId)
   const newest = (a: PTx, b: PTx) => (b.date + b.time).localeCompare(a.date + a.time)
-  const out = allPTxs.filter((x) => x.direction === 'out' && matches(q, personName(x.personKey), money(x.amount), x.amount.toFixed(2), x.reference))
+  // Payments already fully given back are not offered again.
+  const out = allPTxs.filter((x) => refundable(x, refunds) && matches(q, personName(x.personKey), money(x.amount), x.amount.toFixed(2), x.reference))
   const list = [...out.filter((x) => x.personKey === t?.personKey).sort(newest), ...out.filter((x) => x.personKey !== t?.personKey).sort(newest)].slice(0, 40)
   return (
     <Sheet open={txId !== null} onClose={onClose} title="Refund of which payment?">

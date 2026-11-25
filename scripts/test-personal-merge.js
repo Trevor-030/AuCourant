@@ -149,6 +149,30 @@ function categories() {
 
 categories()
 
+// ---- Undo and the refund list (2026-11-25) ----------------------------------------------
+
+function minors() {
+  const paid = tx({ amount: 100 })
+  const half = tx({ direction: 'in', amount: 50, refundOf: paid.id })
+  const all = tx({ direction: 'in', amount: 100, refundOf: paid.id })
+  check('refundable: money out not yet given back', M.refundable(paid, M.refundsByPayment([paid])), true)
+  check('refundable: partly given back', M.refundable(paid, M.refundsByPayment([paid, half])), true)
+  check('refundable: fully given back is left out', M.refundable(paid, M.refundsByPayment([paid, all])), false)
+  check('refundable: money in is not', M.refundable(half, new Map()), false)
+
+  const t1 = tx({ categoryId: 'food', catSource: 'manual' })
+  const t2 = tx({ categoryId: 'food', catSource: 'word' })
+  const t3 = tx({ categoryId: 'food', catSource: 'manual' })
+  // After merging "eating" into "food", t1 and t2 had moved; then the user put t2 in "family".
+  const now = [t1, { ...t2, categoryId: 'family' }, t3]
+  const back = M.undoCategoryMerge(now, [t1.id, t2.id], 'eating', 'food')
+  check('category undo moves back', back[0].categoryId, 'eating')
+  check('category undo keeps a later change', back[1].categoryId, 'family')
+  check('category undo leaves others', back[2].categoryId, 'food')
+}
+
+minors()
+
 console.log(`${passed} passed, ${failures.length} failed`)
 for (const f of failures) console.log('FAIL ' + f)
 if (failures.length) process.exitCode = 1
